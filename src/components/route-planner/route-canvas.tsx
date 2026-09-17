@@ -10,10 +10,18 @@ export interface RouteCanvasHandle {
   centerRoute: () => void;
 }
 
+interface OtherRoute {
+  readonly id: string;
+  readonly title: string;
+  readonly result: RoutePlanResult;
+}
+
 interface RouteCanvasProps {
   result: RoutePlanResult;
   /** Title of the saved path currently shown, if any (drawn as a label over the route line). */
   title?: string | null;
+  /** Other visible saved paths, drawn alongside the route currently being edited. */
+  otherRoutes?: readonly OtherRoute[];
 }
 
 const COLORS = {
@@ -32,6 +40,12 @@ const COLORS = {
   hubExit: "#f59e0b",
   pathLabelBg: "rgba(15, 17, 21, 0.9)",
   pathLabelText: "#f8fafc",
+  // Other visible saved paths are drawn muted, so the route currently being
+  // edited stays the visually dominant one.
+  otherIdealLine: "#a78bfa",
+  otherCorridorFill: "rgba(167, 139, 250, 0.18)",
+  otherCenterlineStroke: "rgba(167, 139, 250, 0.55)",
+  otherDestination: "#a78bfa",
 } as const;
 
 function niceStep(scale: number, targetPx = 90): number {
@@ -59,7 +73,7 @@ function panViewportByScreenDelta(viewport: Viewport, dxPx: number, dyPx: number
 }
 
 export const RouteCanvas = forwardRef<RouteCanvasHandle, RouteCanvasProps>(function RouteCanvas(
-  { result, title },
+  { result, title, otherRoutes = [] },
   ref,
 ) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -282,79 +296,110 @@ export const RouteCanvas = forwardRef<RouteCanvasHandle, RouteCanvasProps>(funct
       ctx.setLineDash([]);
     }
 
-    // Tunnel corridor blocks (the actual construction area).
     const blockPx = Math.max(1, viewport.scale);
-    ctx.fillStyle = COLORS.corridorFill;
-    for (const block of result.tunnel.corridorBlocks) {
-      const s = w2s(block);
-      ctx.fillRect(s.x - blockPx / 2, s.y - blockPx / 2, blockPx, blockPx);
-    }
 
-    // Centerline blocks (exact discrete trajectory) drawn as a brighter spine.
-    if (viewport.scale >= 3) {
-      ctx.strokeStyle = COLORS.centerlineStroke;
-      ctx.lineWidth = 1;
-      for (const block of result.tunnel.centerline) {
+    // Draws one route's corridor/centerline/ideal-line/title/markers. Shared
+    // between the route currently being edited (`isPrimary`, full color,
+    // fixed "Portal" label) and every other visible saved path (muted
+    // color, no fixed label — its title pill is the only label it needs).
+    const drawRoute = (routeResult: RoutePlanResult, routeTitle: string | null | undefined, isPrimary: boolean) => {
+      const corridorFill = isPrimary ? COLORS.corridorFill : COLORS.otherCorridorFill;
+      const centerlineStroke = isPrimary ? COLORS.centerlineStroke : COLORS.otherCenterlineStroke;
+      const idealLine = isPrimary ? COLORS.idealLine : COLORS.otherIdealLine;
+      const destinationColor = isPrimary ? COLORS.destination : COLORS.otherDestination;
+
+      ctx.fillStyle = corridorFill;
+      for (const block of routeResult.tunnel.corridorBlocks) {
         const s = w2s(block);
-        ctx.strokeRect(s.x - blockPx / 2 + 0.5, s.y - blockPx / 2 + 0.5, blockPx - 1, blockPx - 1);
+        ctx.fillRect(s.x - blockPx / 2, s.y - blockPx / 2, blockPx, blockPx);
       }
-    }
 
-    // Ideal straight line (origin -> destination), full route.
-    if (!result.isSamePoint) {
-      const from = w2s(result.origin);
-      const to = w2s(result.destination);
-      ctx.setLineDash([8, 6]);
-      ctx.strokeStyle = COLORS.idealLine;
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.moveTo(from.x, from.y);
-      ctx.lineTo(to.x, to.y);
-      ctx.stroke();
-      ctx.setLineDash([]);
-    }
+      // Centerline blocks (exact discrete trajectory) drawn as a brighter spine.
+      if (viewport.scale >= 3) {
+        ctx.strokeStyle = centerlineStroke;
+        ctx.lineWidth = 1;
+        for (const block of routeResult.tunnel.centerline) {
+          const s = w2s(block);
+          ctx.strokeRect(s.x - blockPx / 2 + 0.5, s.y - blockPx / 2 + 0.5, blockPx - 1, blockPx - 1);
+        }
+      }
 
-    // Path title label (like a street name on a map app), placed at the
-    // midpoint of the ideal line. Unlike a real street label, it never
-    // rotates to follow the line's angle — always horizontal and upright,
-    // per the app's own "standard readable position".
-    if (title && !result.isSamePoint) {
-      const midWorld = {
-        x: (result.origin.x + result.destination.x) / 2,
-        z: (result.origin.z + result.destination.z) / 2,
-      };
-      const mid = w2s(midWorld);
-      ctx.font = "bold 13px ui-sans-serif, system-ui, sans-serif";
-      const paddingX = 8;
-      const paddingY = 4;
-      const textWidth = ctx.measureText(title).width;
-      const boxWidth = textWidth + paddingX * 2;
-      const boxHeight = 13 + paddingY * 2;
-      const boxX = mid.x - boxWidth / 2;
-      const boxY = mid.y - boxHeight / 2;
+      // Ideal straight line (origin -> destination), full route.
+      if (!routeResult.isSamePoint) {
+        const from = w2s(routeResult.origin);
+        const to = w2s(routeResult.destination);
+        ctx.setLineDash([8, 6]);
+        ctx.strokeStyle = idealLine;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(from.x, from.y);
+        ctx.lineTo(to.x, to.y);
+        ctx.stroke();
+        ctx.setLineDash([]);
+      }
+
+      // Path title label (like a street name on a map app), placed at the
+      // midpoint of the ideal line. Unlike a real street label, it never
+      // rotates to follow the line's angle — always horizontal and upright,
+      // per the app's own "standard readable position".
+      if (routeTitle && !routeResult.isSamePoint) {
+        const midWorld = {
+          x: (routeResult.origin.x + routeResult.destination.x) / 2,
+          z: (routeResult.origin.z + routeResult.destination.z) / 2,
+        };
+        const mid = w2s(midWorld);
+        ctx.font = "bold 13px ui-sans-serif, system-ui, sans-serif";
+        const paddingX = 8;
+        const paddingY = 4;
+        const textWidth = ctx.measureText(routeTitle).width;
+        const boxWidth = textWidth + paddingX * 2;
+        const boxHeight = 13 + paddingY * 2;
+        const boxX = mid.x - boxWidth / 2;
+        const boxY = mid.y - boxHeight / 2;
+        ctx.beginPath();
+        ctx.roundRect(boxX, boxY, boxWidth, boxHeight, 5);
+        ctx.fillStyle = COLORS.pathLabelBg;
+        ctx.fill();
+        ctx.strokeStyle = idealLine;
+        ctx.lineWidth = 1;
+        ctx.stroke();
+        ctx.fillStyle = COLORS.pathLabelText;
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText(routeTitle, mid.x, mid.y + 1);
+      }
+
+      // Hub exit marker.
+      if (routeResult.hub.radius > 0 && !routeResult.hub.withinHub && !routeResult.isSamePoint) {
+        const exit = w2s(routeResult.hub.exitPoint);
+        ctx.beginPath();
+        ctx.arc(exit.x, exit.y, 4, 0, Math.PI * 2);
+        ctx.fillStyle = COLORS.hubExit;
+        ctx.fill();
+      }
+
+      // Destination marker.
+      const destScreen = w2s(routeResult.destination);
       ctx.beginPath();
-      ctx.roundRect(boxX, boxY, boxWidth, boxHeight, 5);
-      ctx.fillStyle = COLORS.pathLabelBg;
+      ctx.arc(destScreen.x, destScreen.y, 6, 0, Math.PI * 2);
+      ctx.fillStyle = destinationColor;
       ctx.fill();
-      ctx.strokeStyle = COLORS.idealLine;
-      ctx.lineWidth = 1;
-      ctx.stroke();
-      ctx.fillStyle = COLORS.pathLabelText;
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-      ctx.fillText(title, mid.x, mid.y + 1);
-    }
+      if (isPrimary) {
+        ctx.fillStyle = COLORS.axisText;
+        ctx.font = "12px ui-sans-serif, system-ui, sans-serif";
+        ctx.textAlign = "center";
+        ctx.fillText("Portal", destScreen.x, destScreen.y - 20);
+      }
+    };
 
-    // Hub exit marker.
-    if (result.hub.radius > 0 && !result.hub.withinHub && !result.isSamePoint) {
-      const exit = w2s(result.hub.exitPoint);
-      ctx.beginPath();
-      ctx.arc(exit.x, exit.y, 4, 0, Math.PI * 2);
-      ctx.fillStyle = COLORS.hubExit;
-      ctx.fill();
+    // Other visible saved paths drawn first (muted), so the route currently
+    // being edited renders on top and stays visually dominant.
+    for (const other of otherRoutes) {
+      drawRoute(other.result, other.title, false);
     }
+    drawRoute(result, title, true);
 
-    // Origin marker.
+    // Origin marker (hub center is shared by every route drawn above).
     const originScreen = w2s(result.origin);
     ctx.beginPath();
     ctx.arc(originScreen.x, originScreen.y, 6, 0, Math.PI * 2);
@@ -364,14 +409,6 @@ export const RouteCanvas = forwardRef<RouteCanvasHandle, RouteCanvasProps>(funct
     ctx.font = "12px ui-sans-serif, system-ui, sans-serif";
     ctx.textAlign = "center";
     ctx.fillText("Centro", originScreen.x, originScreen.y - 20);
-
-    // Destination marker.
-    const destScreen = w2s(result.destination);
-    ctx.beginPath();
-    ctx.arc(destScreen.x, destScreen.y, 6, 0, Math.PI * 2);
-    ctx.fillStyle = COLORS.destination;
-    ctx.fill();
-    ctx.fillText("Portal", destScreen.x, destScreen.y - 20);
 
     // Compass rose (fixed to the canvas, not the world): screen-up is North.
     const compassX = 28;
@@ -394,7 +431,7 @@ export const RouteCanvas = forwardRef<RouteCanvasHandle, RouteCanvasProps>(funct
     ctx.font = "10px ui-sans-serif, system-ui, sans-serif";
     ctx.textAlign = "center";
     ctx.fillText("N", compassX, compassY + 5);
-  }, [result, viewport, size, title]);
+  }, [result, viewport, size, title, otherRoutes]);
 
   return (
     <div ref={containerRef} className="relative h-full w-full overflow-hidden rounded-lg border border-neutral-800">

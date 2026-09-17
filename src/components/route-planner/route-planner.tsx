@@ -69,19 +69,44 @@ export function RoutePlanner() {
     [origin, destination, hubRadius, tunnelWidth, tunnelHeight, routeStyle, invertAxisOrder],
   );
 
+  const isCurrentPath = (p: SavedPath) =>
+    p.destination.x === destination.x &&
+    p.destination.z === destination.z &&
+    p.routeStyle === routeStyle &&
+    p.invertAxisOrder === invertAxisOrder;
+
   // The route line only carries a title when it exactly matches a saved
   // path (same destination/style/axis order) — an edited-but-unsaved route
   // has no name to show.
-  const activePathTitle = useMemo(() => {
-    const match = paths.find(
-      (p) =>
-        p.destination.x === destination.x &&
-        p.destination.z === destination.z &&
-        p.routeStyle === routeStyle &&
-        p.invertAxisOrder === invertAxisOrder,
-    );
-    return match?.title ?? null;
-  }, [paths, destination, routeStyle, invertAxisOrder]);
+  const activePathTitle = useMemo(
+    () => paths.find((p) => p.visible && isCurrentPath(p))?.title ?? null,
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [paths, destination, routeStyle, invertAxisOrder],
+  );
+
+  // Every other visible saved path is drawn on the canvas alongside the
+  // route currently being edited, sharing the hub center/radius/tunnel
+  // dimensions (those are shared settings, not part of a saved path).
+  const otherVisibleRoutes = useMemo(
+    () =>
+      paths
+        .filter((p) => p.visible && !isCurrentPath(p))
+        .map((p) => ({
+          id: p.id,
+          title: p.title,
+          result: planRoute({
+            origin,
+            destination: p.destination,
+            hubRadius,
+            tunnelWidth,
+            tunnelHeight,
+            routeStyle: p.routeStyle,
+            invertAxisOrder: p.invertAxisOrder,
+          }),
+        })),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [paths, origin, hubRadius, tunnelWidth, tunnelHeight, destination, routeStyle, invertAxisOrder],
+  );
 
   const handleSavePath = (title: string) => {
     const trimmed = title.trim();
@@ -92,6 +117,7 @@ export function RoutePlanner() {
       destination,
       routeStyle,
       invertAxisOrder,
+      visible: true,
       savedAt: new Date().toISOString(),
     };
     setPaths((prev) => {
@@ -120,6 +146,14 @@ export function RoutePlanner() {
   const handleDeletePath = (id: string) => {
     setPaths((prev) => {
       const next = prev.filter((p) => p.id !== id);
+      persistSavedPaths(next);
+      return next;
+    });
+  };
+
+  const handleToggleVisible = (id: string) => {
+    setPaths((prev) => {
+      const next = prev.map((p) => (p.id === id ? { ...p, visible: !p.visible } : p));
       persistSavedPaths(next);
       return next;
     });
@@ -162,6 +196,7 @@ export function RoutePlanner() {
             onLoad={handleLoadPath}
             onRename={handleRenamePath}
             onDelete={handleDeletePath}
+            onToggleVisible={handleToggleVisible}
           />
         </div>
 
@@ -171,7 +206,7 @@ export function RoutePlanner() {
       </aside>
 
       <main className="relative min-h-[420px] p-4 lg:flex-1">
-        <RouteCanvas ref={canvasRef} result={result} title={activePathTitle} />
+        <RouteCanvas ref={canvasRef} result={result} title={activePathTitle} otherRoutes={otherVisibleRoutes} />
         <RouteControls
           onZoomIn={() => canvasRef.current?.zoomIn()}
           onZoomOut={() => canvasRef.current?.zoomOut()}

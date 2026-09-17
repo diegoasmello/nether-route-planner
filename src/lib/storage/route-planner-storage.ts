@@ -15,6 +15,8 @@ export interface SavedPath {
   readonly destination: Point;
   readonly routeStyle: RouteStyle;
   readonly invertAxisOrder: boolean;
+  /** Whether this path is drawn on the canvas. Defaults to true (see loadSavedPaths). */
+  readonly visible: boolean;
   readonly savedAt: string;
 }
 
@@ -41,7 +43,9 @@ function isRouteStyle(value: unknown): value is RouteStyle {
   return value === "diagonal" || value === "orthogonal";
 }
 
-function isSavedPath(value: unknown): value is SavedPath {
+// `visible` is checked separately (not required) so paths saved before it
+// existed still load — they're normalized to `visible: true` below.
+function isSavedPathShape(value: unknown): value is Omit<SavedPath, "visible"> & { visible?: unknown } {
   if (typeof value !== "object" || value === null) return false;
   const v = value as Record<string, unknown>;
   return (
@@ -61,7 +65,7 @@ export function loadSavedPaths(): SavedPath[] {
     if (!raw) return [];
     const parsed: unknown = JSON.parse(raw);
     if (!Array.isArray(parsed)) return [];
-    return parsed.filter(isSavedPath);
+    return parsed.filter(isSavedPathShape).map((v) => ({ ...v, visible: typeof v.visible === "boolean" ? v.visible : true }));
   } catch {
     return [];
   }

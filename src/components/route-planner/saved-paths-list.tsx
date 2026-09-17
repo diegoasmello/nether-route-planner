@@ -13,6 +13,7 @@ interface SavedPathsListProps {
   onLoad: (path: SavedPath) => void;
   onRename: (id: string, title: string) => void;
   onDelete: (id: string) => void;
+  onToggleVisible: (id: string) => void;
 }
 
 const STYLE_LABEL: Record<RouteStyle, string> = {
@@ -43,6 +44,7 @@ export function SavedPathsList({
   onLoad,
   onRename,
   onDelete,
+  onToggleVisible,
 }: SavedPathsListProps) {
   const [savingTitle, setSavingTitle] = useState<string | null>(null);
   const [renamingId, setRenamingId] = useState<string | null>(null);
@@ -158,6 +160,20 @@ export function SavedPathsList({
                     </span>
                   </button>
                   <div className="flex shrink-0 gap-1">
+                    <button
+                      type="button"
+                      onClick={() => onToggleVisible(path.id)}
+                      title={path.visible ? "Ocultar no canvas" : "Exibir no canvas"}
+                      aria-label={path.visible ? "Ocultar no canvas" : "Exibir no canvas"}
+                      aria-pressed={path.visible}
+                      className={
+                        path.visible
+                          ? "rounded-md border border-emerald-500 bg-emerald-500/10 px-2 py-1 text-xs text-emerald-700 transition-colors hover:bg-emerald-500/20 dark:text-emerald-300"
+                          : "rounded-md border border-neutral-300 px-2 py-1 text-xs text-neutral-400 transition-colors hover:bg-neutral-100 dark:border-neutral-700 dark:text-neutral-500 dark:hover:bg-neutral-800"
+                      }
+                    >
+                      {path.visible ? "◉" : "◯"}
+                    </button>
                     <button
                       type="button"
                       onClick={() => startRenaming(path)}

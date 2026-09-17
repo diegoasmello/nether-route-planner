@@ -38,7 +38,7 @@ For the selected path, the app computes and displays:
 
 Y is not part of any calculation — everything happens on the horizontal X/Z plane.
 
-Every visible path's title is drawn on the canvas as a label at the midpoint of its ideal line (like a street name on a map app) — but always kept **horizontal**, never rotated to the line's angle, unlike a real map's street labels. The canvas renders **every visible path at once**: the selected path draws in full color on top; every other visible path draws underneath in a muted violet, so the selected one stays visually dominant. A path's visibility toggle (in the sidebar list) is independent of selection — hiding the selected path removes it from the canvas even though it's still selected.
+The canvas draws only the actual built path for each visible path — the rasterized `tunnel.centerline`/corridor (diagonal staircase or the two orthogonal legs) — with no separate straight origin→destination overlay. Every visible path's title is drawn as a label at the midpoint of that centerline (like a street name on a map app) — but always kept **horizontal**, never rotated to the line's angle, unlike a real map's street labels. The canvas renders **every visible path at once**: the selected path draws in full color on top; every other visible path draws underneath in a muted violet, so the selected one stays visually dominant. A path's visibility toggle (in the sidebar list) is independent of selection — hiding the selected path removes it from the canvas even though it's still selected.
 
 ## Important math conventions
 
@@ -60,6 +60,7 @@ The list in the sidebar (`saved-paths-list.tsx`) is a deliberate choice, made ex
 - Path fields (title, destination, tunnel width, route style, axis order) are **not** shown inline in a compact list row. A row shows a compact summary (title, coordinates, style/width description) plus four controls: select (click the row body), visibility toggle, edit (pencil), delete.
 - Fields only become editable inside an expanded form, reached via the **"+ Novo caminho"** button (for a new path) or the pencil button (for an existing one). The same `PathEditForm` component is reused for both. Edits are **not** persisted until "Salvar" is pressed; "Cancelar" discards them. Only one path can be in edit mode at a time (creating/editing one disables the others' edit/delete buttons and the "+ Novo caminho" button).
 - **Selection** (`selectedId` in `route-planner.tsx`) is a separate concept from both visibility and editing: clicking a row's body selects it, which determines which path draws as the bright/primary one on the canvas — it does not open the edit form and does not affect what's persisted.
+- While a path is being created/edited, the canvas mirrors the draft's unsaved field values live (`saved-paths-list.tsx` reports the draft up via `onDraftChange`; `route-planner.tsx` holds it as `editingPreview` and uses it, in place of the selected path, to compute the bright/primary route). This preview takes over the primary slot regardless of the underlying path's own visibility toggle — what's being typed matters more than the saved visibility state while editing — and the path being edited is excluded from the muted "other paths" set so it isn't drawn twice. Nothing here touches persistence; only "Salvar" does.
 
 ## Persistence (localStorage)
 
@@ -89,7 +90,7 @@ Both loaders normalize missing fields on stored entries rather than rejecting th
       number-field.tsx            # generic numeric field (radius/width)
       route-style-toggle.tsx      # diagonal/orthogonal picker + axis-invert checkbox
       saved-paths-list.tsx        # the paths list: select/create/edit/delete/show-hide, edit-with-confirmation form
-      route-canvas.tsx            # Canvas2D: grid, hub circle, ideal line(s), corridor, path title labels, pan/zoom, compass — draws the hub once plus every visible path (selected path full color on top, others muted underneath)
+      route-canvas.tsx            # Canvas2D: grid, hub circle, centerline/corridor, path title labels, pan/zoom, compass — draws the hub once plus every visible path (selected path full color on top, others muted underneath)
       route-controls.tsx          # zoom in/out/center buttons
     lib/minecraft/                # pure logic, testable, no React dependency
       geometry.ts                 # distance, delta, angle, compass, circle intersection

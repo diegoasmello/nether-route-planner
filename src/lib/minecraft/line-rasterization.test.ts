@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { rasterizeLine } from "./line-rasterization";
+import { rasterizeLine, rasterizeOrthogonalPath } from "./line-rasterization";
 
 describe("rasterizeLine", () => {
   it("returns a single block when start equals end", () => {
@@ -94,5 +94,74 @@ describe("rasterizeLine", () => {
     for (let i = 1; i < blocks.length; i++) {
       expect(blocks[i]).not.toEqual(blocks[i - 1]);
     }
+  });
+});
+
+describe("rasterizeOrthogonalPath", () => {
+  it("travels the dominant axis (X) first, bending at the destination's X", () => {
+    const path = rasterizeOrthogonalPath({ x: 0, z: 0 }, { x: 100, z: 20 });
+    expect(path.corner).toEqual({ x: 100, z: 0 });
+    expect(path.legs).toHaveLength(2);
+    expect(path.legs[0].direction).toEqual({ x: 100, z: 0 });
+    expect(path.legs[1].direction).toEqual({ x: 0, z: 20 });
+    expect(path.centerline[0]).toEqual({ x: 0, z: 0 });
+    expect(path.centerline.at(-1)).toEqual({ x: 100, z: 20 });
+  });
+
+  it("travels the dominant axis (Z) first, bending at the destination's Z", () => {
+    const path = rasterizeOrthogonalPath({ x: 0, z: 0 }, { x: 20, z: 100 });
+    expect(path.corner).toEqual({ x: 0, z: 100 });
+    expect(path.legs[0].direction).toEqual({ x: 0, z: 100 });
+    expect(path.legs[1].direction).toEqual({ x: 20, z: 0 });
+  });
+
+  it("breaks ties (equal |dx| and |dz|) toward X first", () => {
+    const path = rasterizeOrthogonalPath({ x: 0, z: 0 }, { x: 30, z: 30 });
+    expect(path.corner).toEqual({ x: 30, z: 0 });
+  });
+
+  it("does not duplicate the corner block between legs in the merged centerline", () => {
+    const path = rasterizeOrthogonalPath({ x: 0, z: 0 }, { x: 10, z: 4 });
+    const seen = new Set(path.centerline.map((b) => `${b.x},${b.z}`));
+    expect(seen.size).toBe(path.centerline.length);
+    expect(path.centerline).toContainEqual(path.corner);
+  });
+
+  it("collapses to a single leg when already axis-aligned", () => {
+    const path = rasterizeOrthogonalPath({ x: 0, z: 0 }, { x: 10, z: 0 });
+    expect(path.legs).toHaveLength(1);
+    expect(path.centerline).toEqual(rasterizeLine({ x: 0, z: 0 }, { x: 10, z: 0 }));
+  });
+
+  it("handles start === end as a single degenerate leg", () => {
+    const path = rasterizeOrthogonalPath({ x: 5, z: 5 }, { x: 5, z: 5 });
+    expect(path.legs).toHaveLength(1);
+    expect(path.legs[0].direction).toEqual({ x: 0, z: 0 });
+    expect(path.centerline).toEqual([{ x: 5, z: 5 }]);
+  });
+
+  describe("invert", () => {
+    it("travels the minor axis (Z) first when inverted, opposite of the default", () => {
+      const path = rasterizeOrthogonalPath({ x: 0, z: 0 }, { x: 100, z: 20 }, true);
+      expect(path.corner).toEqual({ x: 0, z: 20 });
+      expect(path.legs[0].direction).toEqual({ x: 0, z: 20 });
+      expect(path.legs[1].direction).toEqual({ x: 100, z: 0 });
+    });
+
+    it("travels the minor axis (X) first when inverted, opposite of the default", () => {
+      const path = rasterizeOrthogonalPath({ x: 0, z: 0 }, { x: 20, z: 100 }, true);
+      expect(path.corner).toEqual({ x: 20, z: 0 });
+    });
+
+    it("breaks the tie toward Z first when inverted", () => {
+      const path = rasterizeOrthogonalPath({ x: 0, z: 0 }, { x: 30, z: 30 }, true);
+      expect(path.corner).toEqual({ x: 0, z: 30 });
+    });
+
+    it("has no effect when the route is already axis-aligned", () => {
+      const normal = rasterizeOrthogonalPath({ x: 0, z: 0 }, { x: 10, z: 0 }, false);
+      const inverted = rasterizeOrthogonalPath({ x: 0, z: 0 }, { x: 10, z: 0 }, true);
+      expect(inverted.centerline).toEqual(normal.centerline);
+    });
   });
 });

@@ -1,13 +1,14 @@
 "use client";
 
 import { useMemo, useRef, useState } from "react";
-import { planRoute, type Point } from "@/lib/minecraft/route";
+import { planRoute, type Point, type RouteStyle } from "@/lib/minecraft/route";
 import { CoordinateInput } from "./coordinate-input";
 import { NumberField } from "./number-field";
 import { RouteResults } from "./route-results";
 import { RouteCanvas, type RouteCanvasHandle } from "./route-canvas";
 import { RouteControls } from "./route-controls";
 import { RouteCoordinateList } from "./route-coordinate-list";
+import { RouteStyleToggle } from "./route-style-toggle";
 
 const DEFAULTS = {
   origin: { x: 100, z: -50 } satisfies Point,
@@ -15,6 +16,8 @@ const DEFAULTS = {
   hubRadius: 20,
   tunnelWidth: 3,
   tunnelHeight: 3,
+  routeStyle: "diagonal" as RouteStyle,
+  invertAxisOrder: false,
 };
 
 export function RoutePlanner() {
@@ -23,12 +26,14 @@ export function RoutePlanner() {
   const [hubRadius, setHubRadius] = useState(DEFAULTS.hubRadius);
   const [tunnelWidth, setTunnelWidth] = useState(DEFAULTS.tunnelWidth);
   const [tunnelHeight, setTunnelHeight] = useState(DEFAULTS.tunnelHeight);
+  const [routeStyle, setRouteStyle] = useState<RouteStyle>(DEFAULTS.routeStyle);
+  const [invertAxisOrder, setInvertAxisOrder] = useState(DEFAULTS.invertAxisOrder);
 
   const canvasRef = useRef<RouteCanvasHandle>(null);
 
   const result = useMemo(
-    () => planRoute({ origin, destination, hubRadius, tunnelWidth, tunnelHeight }),
-    [origin, destination, hubRadius, tunnelWidth, tunnelHeight],
+    () => planRoute({ origin, destination, hubRadius, tunnelWidth, tunnelHeight, routeStyle, invertAxisOrder }),
+    [origin, destination, hubRadius, tunnelWidth, tunnelHeight, routeStyle, invertAxisOrder],
   );
 
   return (
@@ -45,6 +50,12 @@ export function RoutePlanner() {
             <NumberField label="Largura do túnel" value={tunnelWidth} onChange={setTunnelWidth} min={1} />
             <NumberField label="Altura do túnel" value={tunnelHeight} onChange={setTunnelHeight} min={1} />
           </div>
+          <RouteStyleToggle
+            value={routeStyle}
+            onChange={setRouteStyle}
+            invertAxisOrder={invertAxisOrder}
+            onInvertAxisOrderChange={setInvertAxisOrder}
+          />
         </div>
 
         <div className="h-px bg-neutral-200 dark:bg-neutral-800" />

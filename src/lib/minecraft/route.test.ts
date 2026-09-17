@@ -9,6 +9,7 @@ describe("planRoute", () => {
       hubRadius: 20,
       tunnelWidth: 3,
       tunnelHeight: 3,
+      routeStyle: "diagonal",
     });
 
     expect(result.delta).toEqual({ dx: 137, dz: 234 });
@@ -37,6 +38,7 @@ describe("planRoute", () => {
       hubRadius: 20,
       tunnelWidth: 3,
       tunnelHeight: 3,
+      routeStyle: "diagonal",
     });
 
     expect(result.isSamePoint).toBe(true);
@@ -56,6 +58,7 @@ describe("planRoute", () => {
       hubRadius: 20,
       tunnelWidth: 3,
       tunnelHeight: 3,
+      routeStyle: "diagonal",
     });
 
     expect(result.hub.withinHub).toBe(true);
@@ -70,6 +73,7 @@ describe("planRoute", () => {
       hubRadius: 0,
       tunnelWidth: 3,
       tunnelHeight: 3,
+      routeStyle: "diagonal",
     });
 
     expect(result.hub.exitPoint).toEqual({ x: 0, z: 0 });
@@ -83,6 +87,7 @@ describe("planRoute", () => {
       hubRadius: 0,
       tunnelWidth: 3,
       tunnelHeight: 3,
+      routeStyle: "diagonal",
     });
 
     expect(result.compassDirection).toBe("Leste");
@@ -96,6 +101,7 @@ describe("planRoute", () => {
       hubRadius: 0,
       tunnelWidth: 3,
       tunnelHeight: 3,
+      routeStyle: "diagonal",
     });
 
     expect(result.compassDirection).toBe("Sul");
@@ -109,6 +115,7 @@ describe("planRoute", () => {
       hubRadius: 20,
       tunnelWidth: 3,
       tunnelHeight: 3,
+      routeStyle: "diagonal",
     });
 
     expect(result.distance).toBeCloseTo(1025.914, 2);
@@ -122,9 +129,140 @@ describe("planRoute", () => {
       hubRadius: 0,
       tunnelWidth: 0,
       tunnelHeight: -2,
+      routeStyle: "diagonal",
     });
 
     expect(result.tunnel.width).toBe(1);
     expect(result.tunnel.height).toBe(1);
+  });
+
+  describe("orthogonal route style", () => {
+    it("builds an L-shaped path with the dominant axis traveled first", () => {
+      const result = planRoute({
+        origin: { x: 0, z: 0 },
+        destination: { x: 100, z: 20 },
+        hubRadius: 0,
+        tunnelWidth: 3,
+        tunnelHeight: 3,
+        routeStyle: "orthogonal",
+      });
+
+      // Dominant axis (X, |100| > |20|) travels first: the corner sits at
+      // the destination's X but the start's Z.
+      const corner = { x: 100, z: 0 };
+      expect(result.tunnel.centerline[0]).toEqual({ x: 0, z: 0 });
+      expect(result.tunnel.centerline).toContainEqual(corner);
+      expect(result.tunnel.centerline.at(-1)).toEqual({ x: 100, z: 20 });
+      expect(result.tunnel.centerline.every((b) => b.z === 0 || b.x === 100)).toBe(true);
+    });
+
+    it("travels the Z axis first when it is dominant", () => {
+      const result = planRoute({
+        origin: { x: 0, z: 0 },
+        destination: { x: 20, z: 100 },
+        hubRadius: 0,
+        tunnelWidth: 3,
+        tunnelHeight: 3,
+        routeStyle: "orthogonal",
+      });
+
+      const corner = { x: 0, z: 100 };
+      expect(result.tunnel.centerline).toContainEqual(corner);
+      expect(result.tunnel.centerline.every((b) => b.x === 0 || b.z === 100)).toBe(true);
+    });
+
+    it("degenerates to a single straight leg on an already axis-aligned route", () => {
+      const result = planRoute({
+        origin: { x: 0, z: 0 },
+        destination: { x: 50, z: 0 },
+        hubRadius: 0,
+        tunnelWidth: 3,
+        tunnelHeight: 3,
+        routeStyle: "orthogonal",
+      });
+
+      expect(result.tunnel.centerline).toEqual(
+        planRoute({
+          origin: { x: 0, z: 0 },
+          destination: { x: 50, z: 0 },
+          hubRadius: 0,
+          tunnelWidth: 3,
+          tunnelHeight: 3,
+          routeStyle: "diagonal",
+        }).tunnel.centerline,
+      );
+    });
+
+    it("produces a corridor with no duplicate blocks, including at the corner", () => {
+      const result = planRoute({
+        origin: { x: 0, z: 0 },
+        destination: { x: 40, z: 15 },
+        hubRadius: 0,
+        tunnelWidth: 4,
+        tunnelHeight: 3,
+        routeStyle: "orthogonal",
+      });
+
+      const seen = new Set(result.tunnel.corridorBlocks.map((b) => `${b.x},${b.z}`));
+      expect(seen.size).toBe(result.tunnel.corridorBlocks.length);
+      expect(result.tunnel.corridorBlocks.length).toBeGreaterThan(result.tunnel.centerline.length);
+    });
+
+    it("reports no tunnel when the portal is inside the hub radius", () => {
+      const result = planRoute({
+        origin: { x: 0, z: 0 },
+        destination: { x: 5, z: 5 },
+        hubRadius: 20,
+        tunnelWidth: 3,
+        tunnelHeight: 3,
+        routeStyle: "orthogonal",
+      });
+
+      expect(result.tunnel.length).toBe(0);
+      expect(result.tunnel.centerline).toEqual([]);
+      expect(result.tunnel.corridorBlocks).toEqual([]);
+    });
+
+    it("travels the minor axis first when invertAxisOrder is set", () => {
+      const result = planRoute({
+        origin: { x: 0, z: 0 },
+        destination: { x: 100, z: 20 },
+        hubRadius: 0,
+        tunnelWidth: 3,
+        tunnelHeight: 3,
+        routeStyle: "orthogonal",
+        invertAxisOrder: true,
+      });
+
+      // Inverted: Z (minor axis) travels first, so the corner keeps the
+      // start's X but reaches the destination's Z.
+      const corner = { x: 0, z: 20 };
+      expect(result.tunnel.centerline).toContainEqual(corner);
+      expect(result.tunnel.centerline.every((b) => b.x === 0 || b.z === 20)).toBe(true);
+    });
+
+    it("ignores invertAxisOrder in diagonal mode", () => {
+      const base = { x: 0, z: 0 };
+      const dest = { x: 137, z: 234 };
+      const normal = planRoute({
+        origin: base,
+        destination: dest,
+        hubRadius: 0,
+        tunnelWidth: 3,
+        tunnelHeight: 3,
+        routeStyle: "diagonal",
+      });
+      const inverted = planRoute({
+        origin: base,
+        destination: dest,
+        hubRadius: 0,
+        tunnelWidth: 3,
+        tunnelHeight: 3,
+        routeStyle: "diagonal",
+        invertAxisOrder: true,
+      });
+
+      expect(inverted.tunnel.centerline).toEqual(normal.tunnel.centerline);
+    });
   });
 });

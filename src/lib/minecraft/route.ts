@@ -15,8 +15,16 @@ import {
   type Delta,
   type Point,
 } from "./geometry";
-import { rasterizeLine, type BlockCoord } from "./line-rasterization";
+import { rasterizeLine, rasterizeOrthogonalPath, type BlockCoord } from "./line-rasterization";
 import { buildTunnelCorridor, estimateTunnelArea, estimateTunnelVolume } from "./tunnel";
+
+/**
+ * "diagonal": follow the ideal line exactly (Bresenham), producing the
+ * jagged block staircase a true diagonal requires.
+ * "orthogonal": two straight, axis-aligned legs (see `rasterizeOrthogonalPath`)
+ * — easier to build, at the cost of no longer following the ideal line.
+ */
+export type RouteStyle = "diagonal" | "orthogonal";
 
 export interface RoutePlanInput {
   readonly origin: Point;
@@ -24,6 +32,13 @@ export interface RoutePlanInput {
   readonly hubRadius: number;
   readonly tunnelWidth: number;
   readonly tunnelHeight: number;
+  readonly routeStyle: RouteStyle;
+  /**
+   * Only meaningful when `routeStyle === "orthogonal"`: swaps which axis is
+   * traveled first (the minor axis instead of the dominant one). Ignored
+   * for "diagonal", which has no such split to invert.
+   */
+  readonly invertAxisOrder?: boolean;
 }
 
 export interface RoutePlanResult {
@@ -46,6 +61,7 @@ export interface RoutePlanResult {
     readonly length: number;
     readonly width: number;
     readonly height: number;
+    readonly style: RouteStyle;
     readonly centerline: BlockCoord[];
     readonly corridorBlocks: BlockCoord[];
     readonly approxArea: number;
@@ -53,24 +69,50 @@ export interface RoutePlanResult {
   };
 }
 
+function dedupeBlocks(blocks: readonly BlockCoord[]): BlockCoord[] {
+  const seen = new Set<string>();
+  const result: BlockCoord[] = [];
+  for (const block of blocks) {
+    const key = `${block.x},${block.z}`;
+    if (!seen.has(key)) {
+      seen.add(key);
+      result.push(block);
+    }
+  }
+  return result;
+}
+
 export function planRoute(input: RoutePlanInput): RoutePlanResult {
-  const { origin, destination, hubRadius, tunnelWidth, tunnelHeight } = input;
+  const { origin, destination, hubRadius, tunnelWidth, tunnelHeight, routeStyle, invertAxisOrder = false } = input;
 
   const hubExit = findHubExit(origin, destination, hubRadius);
   const tunnelStart = hubExit.exitPoint;
   const tunnelEnd = destination;
   const tunnelLength = distance(tunnelStart, tunnelEnd);
 
-  const centerline = tunnelLength === 0 ? [] : rasterizeLine(tunnelStart, tunnelEnd);
-  const routeDelta = delta(origin, destination);
-  const routeDirection: Point = { x: routeDelta.dx, z: routeDelta.dz };
-  const corridorBlocks =
-    centerline.length === 0 ? [] : buildTunnelCorridor(centerline, routeDirection, tunnelWidth);
+  let centerline: BlockCoord[] = [];
+  let corridorBlocks: BlockCoord[] = [];
+
+  if (tunnelLength > 0) {
+    if (routeStyle === "orthogonal") {
+      const path = rasterizeOrthogonalPath(tunnelStart, tunnelEnd, invertAxisOrder);
+      centerline = path.centerline;
+      corridorBlocks = dedupeBlocks(
+        path.legs
+          .filter((leg) => leg.direction.x !== 0 || leg.direction.z !== 0)
+          .flatMap((leg) => buildTunnelCorridor(leg.centerline, leg.direction, tunnelWidth)),
+      );
+    } else {
+      centerline = rasterizeLine(tunnelStart, tunnelEnd);
+      const routeDelta = delta(origin, destination);
+      corridorBlocks = buildTunnelCorridor(centerline, { x: routeDelta.dx, z: routeDelta.dz }, tunnelWidth);
+    }
+  }
 
   return {
     origin,
     destination,
-    delta: routeDelta,
+    delta: delta(origin, destination),
     distance: distance(origin, destination),
     angleFromXAxis: angleFromXAxis(origin, destination),
     compassBearing: compassBearing(origin, destination),
@@ -87,6 +129,7 @@ export function planRoute(input: RoutePlanInput): RoutePlanResult {
       length: tunnelLength,
       width: Math.max(1, Math.floor(tunnelWidth)),
       height: Math.max(1, Math.floor(tunnelHeight)),
+      style: routeStyle,
       centerline,
       corridorBlocks,
       approxArea: estimateTunnelArea(tunnelLength, tunnelWidth),

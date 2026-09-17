@@ -5,7 +5,7 @@
  * vertical/horizontal lines and the degenerate single-point case).
  */
 
-import type { Point } from "./geometry";
+import { isSamePoint, type Point } from "./geometry";
 
 export interface BlockCoord {
   readonly x: number;
@@ -44,4 +44,63 @@ export function rasterizeLine(start: Point, end: Point): BlockCoord[] {
   }
 
   return blocks;
+}
+
+export interface OrthogonalLeg {
+  readonly centerline: BlockCoord[];
+  /** Leg direction, in world units (not normalized). Zero vector for a degenerate leg. */
+  readonly direction: Point;
+}
+
+export interface OrthogonalPath {
+  /** The point where the path bends from one axis to the other. */
+  readonly corner: Point;
+  /** One or two straight, axis-aligned legs, in travel order. */
+  readonly legs: OrthogonalLeg[];
+  readonly centerline: BlockCoord[];
+}
+
+/**
+ * Rasterizes start->end as an "L"-shaped path of two straight, axis-aligned
+ * segments instead of a single diagonal (see `rasterizeLine`) — the
+ * alternative some players prefer to build, since it avoids the jagged
+ * block-by-block staircase a true diagonal produces.
+ *
+ * By default, the dominant axis (whichever of |dx|/|dz| is larger) is
+ * traveled first, out of the hub, so the corner sits as close to the
+ * destination as possible; ties go to X. Pass `invert: true` to travel the
+ * other (minor) axis first instead — e.g. to route around an obstacle near
+ * the hub. When start and end already share an axis, both orders degenerate
+ * to the same single straight leg, identical to `rasterizeLine`.
+ */
+export function rasterizeOrthogonalPath(start: Point, end: Point, invert = false): OrthogonalPath {
+  const dx = end.x - start.x;
+  const dz = end.z - start.z;
+  const xDominant = Math.abs(dx) >= Math.abs(dz);
+  const xFirst = invert ? !xDominant : xDominant;
+  const corner: Point = xFirst ? { x: end.x, z: start.z } : { x: start.x, z: end.z };
+
+  const legs: OrthogonalLeg[] = [];
+  if (!isSamePoint(start, corner)) {
+    legs.push({
+      centerline: rasterizeLine(start, corner),
+      direction: { x: corner.x - start.x, z: corner.z - start.z },
+    });
+  }
+  if (!isSamePoint(corner, end)) {
+    legs.push({
+      centerline: rasterizeLine(corner, end),
+      direction: { x: end.x - corner.x, z: end.z - corner.z },
+    });
+  }
+  if (legs.length === 0) {
+    legs.push({ centerline: [{ x: start.x, z: start.z }], direction: { x: 0, z: 0 } });
+  }
+
+  const centerline: BlockCoord[] = [];
+  for (const leg of legs) {
+    centerline.push(...(centerline.length === 0 ? leg.centerline : leg.centerline.slice(1)));
+  }
+
+  return { corner, legs, centerline };
 }

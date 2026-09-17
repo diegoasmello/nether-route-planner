@@ -333,7 +333,7 @@ export const RouteCanvas = forwardRef<RouteCanvasHandle, RouteCanvasProps>(funct
       // diagonal or orthogonal). Unlike a real street label, it never
       // rotates to follow the line's angle — always horizontal and
       // upright, per the app's own "standard readable position".
-      if (routeResult.tunnel.centerline.length > 0) {
+      if (route.title.trim() !== "" && routeResult.tunnel.centerline.length > 0) {
         const midBlock = routeResult.tunnel.centerline[Math.floor(routeResult.tunnel.centerline.length / 2)];
         const mid = w2s(midBlock);
         ctx.font = "bold 13px ui-sans-serif, system-ui, sans-serif";

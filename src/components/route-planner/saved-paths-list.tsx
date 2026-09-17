@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { Point, RouteStyle } from "@/lib/minecraft/route";
 import type { SavedPath } from "@/lib/storage/route-planner-storage";
 import { CoordinateInput } from "./coordinate-input";
@@ -16,6 +16,12 @@ export interface PathDraft {
   invertAxisOrder: boolean;
 }
 
+/** The path being edited (its id, or "new" while creating) plus its current, unsaved field values. */
+export interface EditingPreview {
+  editingId: string | "new";
+  draft: PathDraft;
+}
+
 interface SavedPathsListProps {
   paths: SavedPath[];
   /** Hub center, used to seed a new path's destination field. */
@@ -26,6 +32,8 @@ interface SavedPathsListProps {
   onUpdate: (id: string, draft: PathDraft) => void;
   onToggleVisible: (id: string) => void;
   onDelete: (id: string) => void;
+  /** Fires on every draft change while creating/editing, and with `null` once editing ends — lets the canvas preview unsaved edits live. */
+  onDraftChange: (preview: EditingPreview | null) => void;
 }
 
 const STYLE_LABEL: Record<RouteStyle, string> = {
@@ -129,9 +137,16 @@ export function SavedPathsList({
   onUpdate,
   onToggleVisible,
   onDelete,
+  onDraftChange,
 }: SavedPathsListProps) {
   const [editingId, setEditingId] = useState<string | "new" | null>(null);
   const [draft, setDraft] = useState<PathDraft | null>(null);
+
+  // Lets the canvas mirror unsaved edits live, without persisting them —
+  // `onCreate`/`onUpdate` (only reached from "Salvar") are what persists.
+  useEffect(() => {
+    onDraftChange(editingId !== null && draft ? { editingId, draft } : null);
+  }, [editingId, draft, onDraftChange]);
 
   const startCreating = () => {
     setEditingId("new");

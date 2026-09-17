@@ -11,7 +11,7 @@ import {
 } from "@/lib/storage/route-planner-storage";
 import { CoordinateInput } from "./coordinate-input";
 import { NumberField } from "./number-field";
-import { SavedPathsList, type PathDraft } from "./saved-paths-list";
+import { SavedPathsList, type EditingPreview, type PathDraft } from "./saved-paths-list";
 import { RouteCanvas, type RouteCanvasHandle } from "./route-canvas";
 import { RouteControls } from "./route-controls";
 
@@ -25,6 +25,7 @@ export function RoutePlanner() {
   const [hubRadius, setHubRadius] = useState(DEFAULTS.hubRadius);
   const [paths, setPaths] = useState<SavedPath[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [editingPreview, setEditingPreview] = useState<EditingPreview | null>(null);
   const [settingsLoaded, setSettingsLoaded] = useState(false);
 
   const canvasRef = useRef<RouteCanvasHandle>(null);
@@ -73,22 +74,43 @@ export function RoutePlanner() {
     [selectedPath, origin, hubRadius],
   );
 
-  // The canvas's bright, on-top route: the selected path, but only if it's
-  // actually visible — selection never overrides the visibility toggle.
-  const primary = useMemo(
-    () =>
-      selectedPath && selectedPath.visible && selectedResult
-        ? { id: selectedPath.id, title: selectedPath.title, result: selectedResult }
-        : null,
-    [selectedPath, selectedResult],
-  );
+  // The canvas's bright, on-top route: while creating/editing a path, its
+  // live (unsaved) field values — so the canvas mirrors edits as they
+  // happen, regardless of the underlying path's own visibility toggle.
+  // Otherwise, the selected path, but only if it's actually visible —
+  // selection never overrides the visibility toggle.
+  const primary = useMemo(() => {
+    if (editingPreview) {
+      const draft = editingPreview.draft;
+      const previewResult = planRoute({
+        origin,
+        destination: draft.destination,
+        hubRadius,
+        tunnelWidth: draft.tunnelWidth,
+        routeStyle: draft.routeStyle,
+        invertAxisOrder: draft.invertAxisOrder,
+      });
+      return { id: editingPreview.editingId, title: draft.title, result: previewResult };
+    }
+    return selectedPath && selectedPath.visible && selectedResult
+      ? { id: selectedPath.id, title: selectedPath.title, result: selectedResult }
+      : null;
+  }, [editingPreview, origin, hubRadius, selectedPath, selectedResult]);
 
   // Every other visible saved path, drawn muted alongside the primary one,
   // sharing the hub center/radius (shared settings, not part of any path).
+  // The path currently occupying the primary slot is excluded here so it
+  // doesn't also render as a second, stale copy of itself.
+  const excludedFromOther = editingPreview
+    ? editingPreview.editingId !== "new"
+      ? editingPreview.editingId
+      : null
+    : selectedId;
+
   const otherRoutes = useMemo(
     () =>
       paths
-        .filter((p) => p.visible && p.id !== selectedId)
+        .filter((p) => p.visible && p.id !== excludedFromOther)
         .map((p) => ({
           id: p.id,
           title: p.title,
@@ -101,7 +123,7 @@ export function RoutePlanner() {
             invertAxisOrder: p.invertAxisOrder,
           }),
         })),
-    [paths, selectedId, origin, hubRadius],
+    [paths, excludedFromOther, origin, hubRadius],
   );
 
   const handleCreatePath = (draft: PathDraft) => {
@@ -168,6 +190,7 @@ export function RoutePlanner() {
             onUpdate={handleUpdatePath}
             onToggleVisible={handleToggleVisible}
             onDelete={handleDeletePath}
+            onDraftChange={setEditingPreview}
           />
         </div>
       </aside>

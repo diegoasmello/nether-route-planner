@@ -34,7 +34,7 @@ const COLORS = {
   axisText: "#8b93a3",
   hubStroke: "#f59e0b",
   hubFill: "rgba(245, 158, 11, 0.08)",
-  idealLine: "#38bdf8",
+  accent: "#38bdf8",
   corridorFill: "rgba(16, 185, 129, 0.35)",
   centerlineStroke: "#34d399",
   origin: "#f8fafc",
@@ -44,7 +44,7 @@ const COLORS = {
   pathLabelText: "#f8fafc",
   // Other visible saved paths are drawn muted, so the selected path stays
   // the visually dominant one.
-  otherIdealLine: "#a78bfa",
+  otherAccent: "#a78bfa",
   otherCorridorFill: "rgba(167, 139, 250, 0.18)",
   otherCenterlineStroke: "rgba(167, 139, 250, 0.55)",
   otherDestination: "#a78bfa",
@@ -301,15 +301,15 @@ export const RouteCanvas = forwardRef<RouteCanvasHandle, RouteCanvasProps>(funct
 
     const blockPx = Math.max(1, viewport.scale);
 
-    // Draws one path's corridor/centerline/ideal-line/title/markers. Shared
-    // between the selected path (`isPrimary`, full color, fixed "Portal"
-    // label) and every other visible saved path (muted color, no fixed
-    // label — its title pill is the only label it needs).
+    // Draws one path's corridor/centerline/title/markers. Shared between
+    // the selected path (`isPrimary`, full color, fixed "Portal" label)
+    // and every other visible saved path (muted color, no fixed label —
+    // its title pill is the only label it needs).
     const drawRoute = (route: NamedRoute, isPrimary: boolean) => {
       const routeResult = route.result;
       const corridorFill = isPrimary ? COLORS.corridorFill : COLORS.otherCorridorFill;
       const centerlineStroke = isPrimary ? COLORS.centerlineStroke : COLORS.otherCenterlineStroke;
-      const idealLine = isPrimary ? COLORS.idealLine : COLORS.otherIdealLine;
+      const accent = isPrimary ? COLORS.accent : COLORS.otherAccent;
       const destinationColor = isPrimary ? COLORS.destination : COLORS.otherDestination;
 
       ctx.fillStyle = corridorFill;
@@ -328,30 +328,14 @@ export const RouteCanvas = forwardRef<RouteCanvasHandle, RouteCanvasProps>(funct
         }
       }
 
-      // Ideal straight line (origin -> destination), full route.
-      if (!routeResult.isSamePoint) {
-        const from = w2s(routeResult.origin);
-        const to = w2s(routeResult.destination);
-        ctx.setLineDash([8, 6]);
-        ctx.strokeStyle = idealLine;
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.moveTo(from.x, from.y);
-        ctx.lineTo(to.x, to.y);
-        ctx.stroke();
-        ctx.setLineDash([]);
-      }
-
       // Path title label (like a street name on a map app), placed at the
-      // midpoint of the ideal line. Unlike a real street label, it never
-      // rotates to follow the line's angle — always horizontal and upright,
-      // per the app's own "standard readable position".
-      if (!routeResult.isSamePoint) {
-        const midWorld = {
-          x: (routeResult.origin.x + routeResult.destination.x) / 2,
-          z: (routeResult.origin.z + routeResult.destination.z) / 2,
-        };
-        const mid = w2s(midWorld);
+      // midpoint of the actual built path (the centerline the user chose —
+      // diagonal or orthogonal). Unlike a real street label, it never
+      // rotates to follow the line's angle — always horizontal and
+      // upright, per the app's own "standard readable position".
+      if (routeResult.tunnel.centerline.length > 0) {
+        const midBlock = routeResult.tunnel.centerline[Math.floor(routeResult.tunnel.centerline.length / 2)];
+        const mid = w2s(midBlock);
         ctx.font = "bold 13px ui-sans-serif, system-ui, sans-serif";
         const paddingX = 8;
         const paddingY = 4;
@@ -364,7 +348,7 @@ export const RouteCanvas = forwardRef<RouteCanvasHandle, RouteCanvasProps>(funct
         ctx.roundRect(boxX, boxY, boxWidth, boxHeight, 5);
         ctx.fillStyle = COLORS.pathLabelBg;
         ctx.fill();
-        ctx.strokeStyle = idealLine;
+        ctx.strokeStyle = accent;
         ctx.lineWidth = 1;
         ctx.stroke();
         ctx.fillStyle = COLORS.pathLabelText;

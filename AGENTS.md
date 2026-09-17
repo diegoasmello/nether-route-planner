@@ -28,7 +28,7 @@ The app computes and displays:
 
 Y is not part of any calculation — everything happens on the horizontal X/Z plane.
 
-Portal configurations (portal X/Z, route style, axis inversion) can be saved as named "paths" and reloaded later — see **Saved paths (localStorage)** below.
+Portal configurations (portal X/Z, route style, axis inversion) can be saved as named "paths" and reloaded later — see **Saved paths (localStorage)** below. When the current form state exactly matches a visible saved path, its title is drawn on the canvas as a label at the midpoint of that route's ideal line (like a street name on a map app) — but always kept **horizontal**, never rotated to the line's angle, unlike a real map's street labels. The canvas can render **multiple saved paths at once** (see **Saved paths** below for the visibility toggle that controls this) — the route currently being edited draws in full color on top, other visible saved paths draw underneath in a muted violet so the active route stays visually dominant.
 
 ## Important math conventions
 
@@ -45,12 +45,14 @@ These decisions are already made and tested — don't rediscover them from scrat
 
 ## Saved paths (localStorage)
 
-Portal configurations can be saved, listed, reloaded, renamed, and deleted from the sidebar (`saved-paths-list.tsx`), replacing what used to be a numeric results panel there. Persistence (`lib/storage/route-planner-storage.ts`) is split across **two separate localStorage records**, deliberately not merged:
+Portal configurations can be saved, listed, reloaded, renamed, deleted, and shown/hidden from the sidebar (`saved-paths-list.tsx`), replacing what used to be a numeric results panel there. Persistence (`lib/storage/route-planner-storage.ts`) is split across **two separate localStorage records**, deliberately not merged:
 
-- `nether-route-planner:paths` — the list of saved paths. Each entry is only the portal-specific fields: title, destination (X, Z), route style, axis inversion.
+- `nether-route-planner:paths` — the list of saved paths. Each entry is only the portal-specific fields: title, destination (X, Z), route style, axis inversion, and `visible` (whether it's drawn on the canvas).
 - `nether-route-planner:settings` — hub center, hub radius, tunnel width, tunnel height. These are shared by every saved path (one hub, many portals), so they live outside any individual path entry and are persisted automatically whenever they change.
 
 Loading a saved path only overwrites the destination/style/axis-inversion fields in the form — it never touches the hub center or radius/width/height, since those are shared state, not part of the saved path.
+
+**Per-path visibility (`visible`)**: each saved path has a canvas visibility toggle, defaulting to `true` — both for newly saved paths and for paths saved before this field existed (`loadSavedPaths` normalizes any stored entry missing `visible` to `true`, so old localStorage data doesn't silently go invisible). Toggling it only affects whether that path is drawn on the canvas; it doesn't affect the saved list itself. `route-planner.tsx` computes the canvas's `otherRoutes` as every visible saved path *other than* the one matching the current form state (by destination + route style + axis inversion), each re-planned with `planRoute()` against the shared hub settings — so toggling or editing paths never requires touching `lib/minecraft/route.ts` itself, which only ever plans one route at a time.
 
 ## Stack and architecture
 
@@ -66,8 +68,8 @@ Loading a saved path only overwrites the destination/style/axis-inversion fields
       coordinate-input.tsx        # X/Z field pair
       number-field.tsx            # generic numeric field (radius/width/height)
       route-style-toggle.tsx      # diagonal/orthogonal picker + axis-invert checkbox
-      saved-paths-list.tsx        # save/load/rename/delete saved paths
-      route-canvas.tsx            # Canvas2D: grid, hub circle, ideal line, corridor, pan/zoom, compass
+      saved-paths-list.tsx        # save/load/rename/delete/show-hide saved paths
+      route-canvas.tsx            # Canvas2D: grid, hub circle, ideal line(s), corridor, path title labels, pan/zoom, compass — draws the current route plus every other visible saved path
       route-controls.tsx          # zoom in/out/center buttons
       route-coordinate-list.tsx   # collapsible list + copy coordinates
     lib/minecraft/                # pure logic, testable, no React dependency

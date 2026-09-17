@@ -6,29 +6,39 @@ A web tool that helps plan **Nether Hubs in Minecraft**: a hub has a circular ce
 
 This is not a generic coordinate calculator — it's purpose-built for that workflow (planning/building hubs), with Minecraft-specific conventions and visualization.
 
+## The hub/paths mental model
+
+The app's data — and its UI — is deliberately split into two levels, and the two must never be conflated:
+
+1. **Hub settings**: hub center (X, Z) and hub radius. There is exactly one hub. Shown in a fixed "Hub" section at the top of the sidebar, always visible, edited inline (every change persists immediately — no explicit save step).
+2. **Paths**: a list of portals radiating from that hub. Each path is a fully self-contained record: portal destination (X, Z), tunnel width, route style (`diagonal`/`orthogonal`), and axis order (only meaningful for `orthogonal`). Shown in a "Caminhos" section below, as a list — there is no separate "current route being edited" living outside that list; the list itself is the only source of truth for path data.
+
+This split exists in the code exactly as it does in the UI: `HubSettings` and `SavedPath` are two separate types with no overlapping fields (`lib/storage/route-planner-storage.ts`), and the sidebar has two correspondingly separate sections (`route-planner.tsx`). Don't reintroduce a field shared between them (e.g. moving tunnel width back onto the hub) without deliberately revisiting this split.
+
 ## Core functionality
 
-Given:
+Given, per hub:
 
 - **Origin** (hub center): X, Z
-- **Destination** (portal): X, Z
 - **Hub radius**: blocks to keep clear of tunnel around the center
+
+Given, per path:
+
+- **Destination** (portal): X, Z
 - **Tunnel width**: blocks
-- **Tunnel height**: blocks (used only for volume estimates — the view is 2D)
 - **Route style**: `diagonal` (follow the ideal line exactly, jagged block staircase) or `orthogonal` (two straight axis-aligned legs, an "L", easier to build but doesn't follow the ideal line), plus an axis-order inversion that only applies to `orthogonal`
 
-The app computes and displays:
+For the selected path, the app computes and displays:
 
 - ΔX, ΔZ, Euclidean distance, angle, direction (Minecraft compass)
 - The hub circle and the point where the origin→destination line crosses it (that point is the **effective tunnel start** — the hub margin never changes the route's direction, only where it starts being "built")
 - The line's rasterization into blocks (Bresenham for `diagonal`, two Bresenham legs for `orthogonal`) from the tunnel start to the destination
 - The block corridor for the configured width, centered on the route's direction (not on the block-by-block rasterized line, to avoid a jagged edge)
-- Approximate area/volume estimates (explicitly labeled as approximate, since the discrete rasterization can overlap itself)
-- A copyable list of the trajectory's coordinates, for use while building in game
+- An approximate area estimate (explicitly labeled as approximate, since the discrete rasterization can overlap itself)
 
 Y is not part of any calculation — everything happens on the horizontal X/Z plane.
 
-Portal configurations (portal X/Z, route style, axis inversion) can be saved as named "paths" and reloaded later — see **Saved paths (localStorage)** below. When the current form state exactly matches a visible saved path, its title is drawn on the canvas as a label at the midpoint of that route's ideal line (like a street name on a map app) — but always kept **horizontal**, never rotated to the line's angle, unlike a real map's street labels. The canvas can render **multiple saved paths at once** (see **Saved paths** below for the visibility toggle that controls this) — the route currently being edited draws in full color on top, other visible saved paths draw underneath in a muted violet so the active route stays visually dominant.
+Every visible path's title is drawn on the canvas as a label at the midpoint of its ideal line (like a street name on a map app) — but always kept **horizontal**, never rotated to the line's angle, unlike a real map's street labels. The canvas renders **every visible path at once**: the selected path draws in full color on top; every other visible path draws underneath in a muted violet, so the selected one stays visually dominant. A path's visibility toggle (in the sidebar list) is independent of selection — hiding the selected path removes it from the canvas even though it's still selected.
 
 ## Important math conventions
 
@@ -40,49 +50,58 @@ These decisions are already made and tested — don't rediscover them from scrat
 - **Even widths**: can't be centered exactly on a block grid. The extra block goes on the positive side of the route's perpendicular (e.g. width 4 → offsets `[-1, 0, 1, 2]`). Odd widths center perfectly (e.g. width 3 → `[-1, 0, 1]`).
 - **Hub radius 0**: the tunnel starts at the center (origin) itself.
 - **Portal inside the hub radius**: no tunnel to build (`tunnel.length === 0`, `centerline`/`corridorBlocks` empty).
-- **Origin === destination**: handled explicitly in the UI ("origin and destination are the same point"), with no angle/direction computed.
+- **Origin === destination**: handled explicitly in the UI ("origin and destination are the same point"), with no angle/direction computed. A brand-new path defaults its destination to the hub origin exactly, so it starts in this state until the user edits it.
 - **`rasterizeOrthogonalPath`** (`lib/minecraft/line-rasterization.ts`): by default travels the dominant axis (larger of `|dx|`/`|dz|`) first, out of the hub, so the corner sits as close to the destination as possible; ties go to X. `invert: true` swaps to the minor axis first. When start and end already share an axis, both orders degenerate to the same single leg, identical to `rasterizeLine`.
 
-## Saved paths (localStorage)
+## Paths list: interaction model
 
-Portal configurations can be saved, listed, reloaded, renamed, deleted, and shown/hidden from the sidebar (`saved-paths-list.tsx`), replacing what used to be a numeric results panel there. Persistence (`lib/storage/route-planner-storage.ts`) is split across **two separate localStorage records**, deliberately not merged:
+The list in the sidebar (`saved-paths-list.tsx`) is a deliberate choice, made explicitly by the user, among two options: **edit-with-confirmation** (chosen) vs. inline autosave (like the Hub section uses). This means path fields behave differently from hub fields — don't blur that distinction:
 
-- `nether-route-planner:paths` — the list of saved paths. Each entry is only the portal-specific fields: title, destination (X, Z), route style, axis inversion, and `visible` (whether it's drawn on the canvas).
-- `nether-route-planner:settings` — hub center, hub radius, tunnel width, tunnel height. These are shared by every saved path (one hub, many portals), so they live outside any individual path entry and are persisted automatically whenever they change.
+- Path fields (title, destination, tunnel width, route style, axis order) are **not** shown inline in a compact list row. A row shows a compact summary (title, coordinates, style/width description) plus four controls: select (click the row body), visibility toggle, edit (pencil), delete.
+- Fields only become editable inside an expanded form, reached via the **"+ Novo caminho"** button (for a new path) or the pencil button (for an existing one). The same `PathEditForm` component is reused for both. Edits are **not** persisted until "Salvar" is pressed; "Cancelar" discards them. Only one path can be in edit mode at a time (creating/editing one disables the others' edit/delete buttons and the "+ Novo caminho" button).
+- **Selection** (`selectedId` in `route-planner.tsx`) is a separate concept from both visibility and editing: clicking a row's body selects it, which determines which path draws as the bright/primary one on the canvas — it does not open the edit form and does not affect what's persisted.
 
-Loading a saved path only overwrites the destination/style/axis-inversion fields in the form — it never touches the hub center or radius/width/height, since those are shared state, not part of the saved path.
+## Persistence (localStorage)
 
-**Per-path visibility (`visible`)**: each saved path has a canvas visibility toggle, defaulting to `true` — both for newly saved paths and for paths saved before this field existed (`loadSavedPaths` normalizes any stored entry missing `visible` to `true`, so old localStorage data doesn't silently go invisible). Toggling it only affects whether that path is drawn on the canvas; it doesn't affect the saved list itself. `route-planner.tsx` computes the canvas's `otherRoutes` as every visible saved path *other than* the one matching the current form state (by destination + route style + axis inversion), each re-planned with `planRoute()` against the shared hub settings — so toggling or editing paths never requires touching `lib/minecraft/route.ts` itself, which only ever plans one route at a time.
+`lib/storage/route-planner-storage.ts` splits state across **two separate localStorage records**, deliberately not merged — mirroring the hub/paths split above:
+
+- `nether-route-planner:paths` — the list of paths. Each entry: `id`, `title`, `destination` (X, Z), `tunnelWidth`, `routeStyle`, `invertAxisOrder`, `visible` (canvas visibility), `savedAt`.
+- `nether-route-planner:settings` — hub `origin` and `hubRadius` only. Persisted automatically whenever either changes (no explicit save step, unlike paths — see **interaction model** above).
+
+Both loaders normalize missing fields on stored entries rather than rejecting them, and ignore unrecognized extra fields rather than treating them as invalid:
+
+- `visible` missing on a path → normalized to `true`.
+- `tunnelWidth` missing on a path → normalized to `3` (`DEFAULT_TUNNEL_WIDTH` in that file).
+- `loadHubSettings` only requires `origin`/`hubRadius` to be present and well-typed; any other fields on the stored object are ignored.
 
 ## Stack and architecture
 
 - Next.js (App Router) + TypeScript + React + Tailwind CSS
-- No backend — everything is client-side; persistence is browser localStorage only (see **Saved paths** above)
-- Vitest for tests (math layer only, 92 tests)
+- No backend — everything is client-side; persistence is browser localStorage only (see **Persistence** above)
+- Vitest for tests (math layer only, 91 tests)
 - Structure:
   ```
   src/
     app/                          # page shell (layout, page)
     components/route-planner/     # UI (client components)
-      route-planner.tsx           # state + composition
+      route-planner.tsx           # state + composition: hub settings, paths list, selection, canvas wiring
       coordinate-input.tsx        # X/Z field pair
-      number-field.tsx            # generic numeric field (radius/width/height)
+      number-field.tsx            # generic numeric field (radius/width)
       route-style-toggle.tsx      # diagonal/orthogonal picker + axis-invert checkbox
-      saved-paths-list.tsx        # save/load/rename/delete/show-hide saved paths
-      route-canvas.tsx            # Canvas2D: grid, hub circle, ideal line(s), corridor, path title labels, pan/zoom, compass — draws the current route plus every other visible saved path
+      saved-paths-list.tsx        # the paths list: select/create/edit/delete/show-hide, edit-with-confirmation form
+      route-canvas.tsx            # Canvas2D: grid, hub circle, ideal line(s), corridor, path title labels, pan/zoom, compass — draws the hub once plus every visible path (selected path full color on top, others muted underneath)
       route-controls.tsx          # zoom in/out/center buttons
-      route-coordinate-list.tsx   # collapsible list + copy coordinates
     lib/minecraft/                # pure logic, testable, no React dependency
       geometry.ts                 # distance, delta, angle, compass, circle intersection
       line-rasterization.ts       # Bresenham + orthogonal ("L"-shaped) path
-      tunnel.ts                   # width -> offsets, corridor, area/volume estimates
+      tunnel.ts                   # width -> offsets, corridor, area estimate
       coordinates.ts              # world<->screen transforms, zoom/fit
-      route.ts                    # planRoute(): composes everything into one result for the UI
+      route.ts                    # planRoute(): composes everything into one result for the UI, for a single path at a time
     lib/storage/                  # browser persistence, no React dependency
-      route-planner-storage.ts    # localStorage read/write for saved paths + shared settings
+      route-planner-storage.ts    # localStorage read/write for the paths list + hub settings
   ```
 
-The math layer (`lib/minecraft`) was implemented and tested first, before any UI — geometry, rasterization, tunnel width, and circle intersection are the parts most worth getting right; the UI is built on top of it, not the other way around.
+The math layer (`lib/minecraft`) was implemented and tested first, before any UI — geometry, rasterization, tunnel width, and circle intersection are the parts most worth getting right; the UI is built on top of it, not the other way around. `planRoute()` always plans exactly one path; rendering multiple paths on the canvas means calling it once per visible path (see `route-planner.tsx`'s `primary`/`otherRoutes`), not teaching the math layer about lists.
 
 The visualization uses Canvas2D (not SVG with thousands of DOM elements) because a route can have hundreds or thousands of blocks.
 

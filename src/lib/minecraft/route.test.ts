@@ -8,7 +8,6 @@ describe("planRoute", () => {
       destination: { x: 237, z: 184 },
       hubRadius: 20,
       tunnelWidth: 3,
-      tunnelHeight: 3,
       routeStyle: "diagonal",
     });
 
@@ -28,7 +27,6 @@ describe("planRoute", () => {
     expect(result.tunnel.centerline.length).toBeGreaterThan(0);
     expect(result.tunnel.corridorBlocks.length).toBeGreaterThanOrEqual(result.tunnel.centerline.length);
     expect(result.tunnel.width).toBe(3);
-    expect(result.tunnel.height).toBe(3);
   });
 
   it("handles origin === destination", () => {
@@ -37,7 +35,6 @@ describe("planRoute", () => {
       destination: { x: 5, z: 5 },
       hubRadius: 20,
       tunnelWidth: 3,
-      tunnelHeight: 3,
       routeStyle: "diagonal",
     });
 
@@ -48,7 +45,6 @@ describe("planRoute", () => {
     expect(result.tunnel.centerline).toEqual([]);
     expect(result.tunnel.corridorBlocks).toEqual([]);
     expect(result.tunnel.approxArea).toBe(0);
-    expect(result.tunnel.approxVolume).toBe(0);
   });
 
   it("reports no tunnel needed when the portal is inside the hub radius", () => {
@@ -57,7 +53,6 @@ describe("planRoute", () => {
       destination: { x: 5, z: 5 },
       hubRadius: 20,
       tunnelWidth: 3,
-      tunnelHeight: 3,
       routeStyle: "diagonal",
     });
 
@@ -72,7 +67,6 @@ describe("planRoute", () => {
       destination: { x: 50, z: 0 },
       hubRadius: 0,
       tunnelWidth: 3,
-      tunnelHeight: 3,
       routeStyle: "diagonal",
     });
 
@@ -86,7 +80,6 @@ describe("planRoute", () => {
       destination: { x: 20, z: 5 },
       hubRadius: 0,
       tunnelWidth: 3,
-      tunnelHeight: 3,
       routeStyle: "diagonal",
     });
 
@@ -100,7 +93,6 @@ describe("planRoute", () => {
       destination: { x: 5, z: 20 },
       hubRadius: 0,
       tunnelWidth: 3,
-      tunnelHeight: 3,
       routeStyle: "diagonal",
     });
 
@@ -114,7 +106,6 @@ describe("planRoute", () => {
       destination: { x: 200, z: 450 },
       hubRadius: 20,
       tunnelWidth: 3,
-      tunnelHeight: 3,
       routeStyle: "diagonal",
     });
 
@@ -122,18 +113,16 @@ describe("planRoute", () => {
     expect(result.tunnel.centerline.length).toBeGreaterThan(0);
   });
 
-  it("clamps non-integer/invalid width and height to sane minimums", () => {
+  it("clamps non-integer/invalid width to a sane minimum", () => {
     const result = planRoute({
       origin: { x: 0, z: 0 },
       destination: { x: 10, z: 0 },
       hubRadius: 0,
       tunnelWidth: 0,
-      tunnelHeight: -2,
       routeStyle: "diagonal",
     });
 
     expect(result.tunnel.width).toBe(1);
-    expect(result.tunnel.height).toBe(1);
   });
 
   describe("orthogonal route style", () => {
@@ -143,7 +132,6 @@ describe("planRoute", () => {
         destination: { x: 100, z: 20 },
         hubRadius: 0,
         tunnelWidth: 3,
-        tunnelHeight: 3,
         routeStyle: "orthogonal",
       });
 
@@ -162,7 +150,6 @@ describe("planRoute", () => {
         destination: { x: 20, z: 100 },
         hubRadius: 0,
         tunnelWidth: 3,
-        tunnelHeight: 3,
         routeStyle: "orthogonal",
       });
 
@@ -177,7 +164,6 @@ describe("planRoute", () => {
         destination: { x: 50, z: 0 },
         hubRadius: 0,
         tunnelWidth: 3,
-        tunnelHeight: 3,
         routeStyle: "orthogonal",
       });
 
@@ -187,7 +173,6 @@ describe("planRoute", () => {
           destination: { x: 50, z: 0 },
           hubRadius: 0,
           tunnelWidth: 3,
-          tunnelHeight: 3,
           routeStyle: "diagonal",
         }).tunnel.centerline,
       );
@@ -199,7 +184,6 @@ describe("planRoute", () => {
         destination: { x: 40, z: 15 },
         hubRadius: 0,
         tunnelWidth: 4,
-        tunnelHeight: 3,
         routeStyle: "orthogonal",
       });
 
@@ -214,7 +198,6 @@ describe("planRoute", () => {
         destination: { x: 5, z: 5 },
         hubRadius: 20,
         tunnelWidth: 3,
-        tunnelHeight: 3,
         routeStyle: "orthogonal",
       });
 
@@ -229,7 +212,6 @@ describe("planRoute", () => {
         destination: { x: 100, z: 20 },
         hubRadius: 0,
         tunnelWidth: 3,
-        tunnelHeight: 3,
         routeStyle: "orthogonal",
         invertAxisOrder: true,
       });
@@ -249,7 +231,6 @@ describe("planRoute", () => {
         destination: dest,
         hubRadius: 0,
         tunnelWidth: 3,
-        tunnelHeight: 3,
         routeStyle: "diagonal",
       });
       const inverted = planRoute({
@@ -257,7 +238,6 @@ describe("planRoute", () => {
         destination: dest,
         hubRadius: 0,
         tunnelWidth: 3,
-        tunnelHeight: 3,
         routeStyle: "diagonal",
         invertAxisOrder: true,
       });

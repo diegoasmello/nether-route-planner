@@ -16,7 +16,7 @@ import {
   type Point,
 } from "./geometry";
 import { rasterizeLine, rasterizeOrthogonalPath, type BlockCoord } from "./line-rasterization";
-import { buildTunnelCorridor, estimateTunnelArea, estimateTunnelVolume } from "./tunnel";
+import { buildTunnelCorridor, estimateTunnelArea } from "./tunnel";
 
 /**
  * "diagonal": follow the ideal line exactly (Bresenham), producing the
@@ -31,7 +31,6 @@ export interface RoutePlanInput {
   readonly destination: Point;
   readonly hubRadius: number;
   readonly tunnelWidth: number;
-  readonly tunnelHeight: number;
   readonly routeStyle: RouteStyle;
   /**
    * Only meaningful when `routeStyle === "orthogonal"`: swaps which axis is
@@ -60,12 +59,10 @@ export interface RoutePlanResult {
     readonly end: Point;
     readonly length: number;
     readonly width: number;
-    readonly height: number;
     readonly style: RouteStyle;
     readonly centerline: BlockCoord[];
     readonly corridorBlocks: BlockCoord[];
     readonly approxArea: number;
-    readonly approxVolume: number;
   };
 }
 
@@ -83,7 +80,7 @@ function dedupeBlocks(blocks: readonly BlockCoord[]): BlockCoord[] {
 }
 
 export function planRoute(input: RoutePlanInput): RoutePlanResult {
-  const { origin, destination, hubRadius, tunnelWidth, tunnelHeight, routeStyle, invertAxisOrder = false } = input;
+  const { origin, destination, hubRadius, tunnelWidth, routeStyle, invertAxisOrder = false } = input;
 
   const hubExit = findHubExit(origin, destination, hubRadius);
   const tunnelStart = hubExit.exitPoint;
@@ -128,12 +125,10 @@ export function planRoute(input: RoutePlanInput): RoutePlanResult {
       end: tunnelEnd,
       length: tunnelLength,
       width: Math.max(1, Math.floor(tunnelWidth)),
-      height: Math.max(1, Math.floor(tunnelHeight)),
       style: routeStyle,
       centerline,
       corridorBlocks,
       approxArea: estimateTunnelArea(tunnelLength, tunnelWidth),
-      approxVolume: estimateTunnelVolume(tunnelLength, tunnelWidth, tunnelHeight),
     },
   };
 }

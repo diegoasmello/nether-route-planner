@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildTunnelCorridor, estimateTunnelArea, estimateTunnelVolume, widthOffsets } from "./tunnel";
+import { buildTunnelCorridor, estimateTunnelArea, widthOffsets } from "./tunnel";
 import { rasterizeLine } from "./line-rasterization";
 
 describe("widthOffsets", () => {
@@ -80,17 +80,12 @@ describe("buildTunnelCorridor", () => {
   });
 });
 
-describe("area/volume estimates", () => {
+describe("area estimate", () => {
   it("multiplies length by width for area", () => {
     expect(estimateTunnelArea(100, 3)).toBe(300);
   });
 
-  it("multiplies length by width by height for volume", () => {
-    expect(estimateTunnelVolume(100, 3, 4)).toBe(1200);
-  });
-
   it("is zero for zero length", () => {
     expect(estimateTunnelArea(0, 5)).toBe(0);
-    expect(estimateTunnelVolume(0, 5, 5)).toBe(0);
   });
 });

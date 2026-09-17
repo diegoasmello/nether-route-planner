@@ -2,7 +2,7 @@
 
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
 import { clampScale, fitViewport, screenToWorld, worldToScreen, type ScreenPoint, type Viewport } from "@/lib/minecraft/coordinates";
-import type { RoutePlanResult } from "@/lib/minecraft/route";
+import type { Point, RoutePlanResult } from "@/lib/minecraft/route";
 
 export interface RouteCanvasHandle {
   zoomIn: () => void;
@@ -10,18 +10,20 @@ export interface RouteCanvasHandle {
   centerRoute: () => void;
 }
 
-interface OtherRoute {
+interface NamedRoute {
   readonly id: string;
   readonly title: string;
   readonly result: RoutePlanResult;
 }
 
 interface RouteCanvasProps {
-  result: RoutePlanResult;
-  /** Title of the saved path currently shown, if any (drawn as a label over the route line). */
-  title?: string | null;
-  /** Other visible saved paths, drawn alongside the route currently being edited. */
-  otherRoutes?: readonly OtherRoute[];
+  /** Hub center + radius are drawn once, independent of any path (see AGENTS.md's hub/paths mental model). */
+  hubOrigin: Point;
+  hubRadius: number;
+  /** The selected path, if any: drawn in full color, on top, with the fixed "Portal" label. */
+  primary: NamedRoute | null;
+  /** Every other visible saved path, drawn muted underneath the primary one. */
+  otherRoutes: readonly NamedRoute[];
 }
 
 const COLORS = {
@@ -40,8 +42,8 @@ const COLORS = {
   hubExit: "#f59e0b",
   pathLabelBg: "rgba(15, 17, 21, 0.9)",
   pathLabelText: "#f8fafc",
-  // Other visible saved paths are drawn muted, so the route currently being
-  // edited stays the visually dominant one.
+  // Other visible saved paths are drawn muted, so the selected path stays
+  // the visually dominant one.
   otherIdealLine: "#a78bfa",
   otherCorridorFill: "rgba(167, 139, 250, 0.18)",
   otherCenterlineStroke: "rgba(167, 139, 250, 0.55)",
@@ -73,7 +75,7 @@ function panViewportByScreenDelta(viewport: Viewport, dxPx: number, dyPx: number
 }
 
 export const RouteCanvas = forwardRef<RouteCanvasHandle, RouteCanvasProps>(function RouteCanvas(
-  { result, title, otherRoutes = [] },
+  { hubOrigin, hubRadius, primary, otherRoutes },
   ref,
 ) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -84,17 +86,19 @@ export const RouteCanvas = forwardRef<RouteCanvasHandle, RouteCanvasProps>(funct
   const dragState = useRef<{ pointerId: number; lastX: number; lastY: number } | null>(null);
 
   const fitPoints = useMemo(() => {
-    const points = [result.origin, result.destination];
-    if (result.hub.radius > 0) {
+    const points = [hubOrigin];
+    if (primary) points.push(primary.result.destination);
+    for (const other of otherRoutes) points.push(other.result.destination);
+    if (hubRadius > 0) {
       points.push(
-        { x: result.origin.x - result.hub.radius, z: result.origin.z },
-        { x: result.origin.x + result.hub.radius, z: result.origin.z },
-        { x: result.origin.x, z: result.origin.z - result.hub.radius },
-        { x: result.origin.x, z: result.origin.z + result.hub.radius },
+        { x: hubOrigin.x - hubRadius, z: hubOrigin.z },
+        { x: hubOrigin.x + hubRadius, z: hubOrigin.z },
+        { x: hubOrigin.x, z: hubOrigin.z - hubRadius },
+        { x: hubOrigin.x, z: hubOrigin.z + hubRadius },
       );
     }
     return points;
-  }, [result.origin, result.destination, result.hub.radius]);
+  }, [hubOrigin, hubRadius, primary, otherRoutes]);
 
   const centerRoute = useCallback(() => {
     if (size.width === 0 || size.height === 0) return;
@@ -125,20 +129,19 @@ export const RouteCanvas = forwardRef<RouteCanvasHandle, RouteCanvasProps>(funct
     return () => observer.disconnect();
   }, []);
 
-  // Auto-fit whenever the route's key geometry (not e.g. tunnel width) changes.
-  // Keyed on primitive values rather than `fitPoints` itself, since a new
-  // planRoute() result creates a fresh array on every render regardless of
-  // whether origin/destination/hubRadius actually changed.
+  // Auto-fit whenever the hub or the selected path's destination changes
+  // (not e.g. tunnel width, and not other paths — that's what the manual
+  // "center" control, which fits every visible path, is for).
   useEffect(() => {
     if (size.width === 0 || size.height === 0) return;
     setViewport(fitViewport(fitPoints, size.width, size.height));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
-    result.origin.x,
-    result.origin.z,
-    result.destination.x,
-    result.destination.z,
-    result.hub.radius,
+    hubOrigin.x,
+    hubOrigin.z,
+    hubRadius,
+    primary?.result.destination.x,
+    primary?.result.destination.z,
     size.width,
     size.height,
   ]);
@@ -281,10 +284,10 @@ export const RouteCanvas = forwardRef<RouteCanvasHandle, RouteCanvasProps>(funct
       ctx.stroke();
     }
 
-    // Hub circle.
-    if (result.hub.radius > 0) {
-      const center = w2s(result.origin);
-      const radiusPx = result.hub.radius * viewport.scale;
+    // Hub circle (shared by every path, drawn once).
+    if (hubRadius > 0) {
+      const center = w2s(hubOrigin);
+      const radiusPx = hubRadius * viewport.scale;
       ctx.beginPath();
       ctx.arc(center.x, center.y, radiusPx, 0, Math.PI * 2);
       ctx.fillStyle = COLORS.hubFill;
@@ -298,11 +301,12 @@ export const RouteCanvas = forwardRef<RouteCanvasHandle, RouteCanvasProps>(funct
 
     const blockPx = Math.max(1, viewport.scale);
 
-    // Draws one route's corridor/centerline/ideal-line/title/markers. Shared
-    // between the route currently being edited (`isPrimary`, full color,
-    // fixed "Portal" label) and every other visible saved path (muted
-    // color, no fixed label — its title pill is the only label it needs).
-    const drawRoute = (routeResult: RoutePlanResult, routeTitle: string | null | undefined, isPrimary: boolean) => {
+    // Draws one path's corridor/centerline/ideal-line/title/markers. Shared
+    // between the selected path (`isPrimary`, full color, fixed "Portal"
+    // label) and every other visible saved path (muted color, no fixed
+    // label — its title pill is the only label it needs).
+    const drawRoute = (route: NamedRoute, isPrimary: boolean) => {
+      const routeResult = route.result;
       const corridorFill = isPrimary ? COLORS.corridorFill : COLORS.otherCorridorFill;
       const centerlineStroke = isPrimary ? COLORS.centerlineStroke : COLORS.otherCenterlineStroke;
       const idealLine = isPrimary ? COLORS.idealLine : COLORS.otherIdealLine;
@@ -342,7 +346,7 @@ export const RouteCanvas = forwardRef<RouteCanvasHandle, RouteCanvasProps>(funct
       // midpoint of the ideal line. Unlike a real street label, it never
       // rotates to follow the line's angle — always horizontal and upright,
       // per the app's own "standard readable position".
-      if (routeTitle && !routeResult.isSamePoint) {
+      if (!routeResult.isSamePoint) {
         const midWorld = {
           x: (routeResult.origin.x + routeResult.destination.x) / 2,
           z: (routeResult.origin.z + routeResult.destination.z) / 2,
@@ -351,7 +355,7 @@ export const RouteCanvas = forwardRef<RouteCanvasHandle, RouteCanvasProps>(funct
         ctx.font = "bold 13px ui-sans-serif, system-ui, sans-serif";
         const paddingX = 8;
         const paddingY = 4;
-        const textWidth = ctx.measureText(routeTitle).width;
+        const textWidth = ctx.measureText(route.title).width;
         const boxWidth = textWidth + paddingX * 2;
         const boxHeight = 13 + paddingY * 2;
         const boxX = mid.x - boxWidth / 2;
@@ -366,7 +370,7 @@ export const RouteCanvas = forwardRef<RouteCanvasHandle, RouteCanvasProps>(funct
         ctx.fillStyle = COLORS.pathLabelText;
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";
-        ctx.fillText(routeTitle, mid.x, mid.y + 1);
+        ctx.fillText(route.title, mid.x, mid.y + 1);
       }
 
       // Hub exit marker.
@@ -392,15 +396,17 @@ export const RouteCanvas = forwardRef<RouteCanvasHandle, RouteCanvasProps>(funct
       }
     };
 
-    // Other visible saved paths drawn first (muted), so the route currently
-    // being edited renders on top and stays visually dominant.
+    // Other visible saved paths drawn first (muted), so the selected path
+    // renders on top and stays visually dominant.
     for (const other of otherRoutes) {
-      drawRoute(other.result, other.title, false);
+      drawRoute(other, false);
     }
-    drawRoute(result, title, true);
+    if (primary) {
+      drawRoute(primary, true);
+    }
 
-    // Origin marker (hub center is shared by every route drawn above).
-    const originScreen = w2s(result.origin);
+    // Origin marker (hub center is shared by every path drawn above).
+    const originScreen = w2s(hubOrigin);
     ctx.beginPath();
     ctx.arc(originScreen.x, originScreen.y, 6, 0, Math.PI * 2);
     ctx.fillStyle = COLORS.origin;
@@ -431,7 +437,7 @@ export const RouteCanvas = forwardRef<RouteCanvasHandle, RouteCanvasProps>(funct
     ctx.font = "10px ui-sans-serif, system-ui, sans-serif";
     ctx.textAlign = "center";
     ctx.fillText("N", compassX, compassY + 5);
-  }, [result, viewport, size, title, otherRoutes]);
+  }, [hubOrigin, hubRadius, primary, otherRoutes, viewport, size]);
 
   return (
     <div ref={containerRef} className="relative h-full w-full overflow-hidden rounded-lg border border-neutral-800">

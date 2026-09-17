@@ -70,10 +70,3 @@ export function buildTunnelCorridor(
 export function estimateTunnelArea(length: number, width: number): number {
   return length * width;
 }
-
-/**
- * Rough estimate only, for the same reasons as `estimateTunnelArea`.
- */
-export function estimateTunnelVolume(length: number, width: number, height: number): number {
-  return length * width * height;
-}

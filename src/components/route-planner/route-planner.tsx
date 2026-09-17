@@ -1,41 +1,30 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { planRoute, type Point, type RouteStyle } from "@/lib/minecraft/route";
+import { planRoute, type Point } from "@/lib/minecraft/route";
 import {
+  loadHubSettings,
   loadSavedPaths,
-  loadSharedSettings,
+  persistHubSettings,
   persistSavedPaths,
-  persistSharedSettings,
   type SavedPath,
 } from "@/lib/storage/route-planner-storage";
 import { CoordinateInput } from "./coordinate-input";
 import { NumberField } from "./number-field";
-import { SavedPathsList } from "./saved-paths-list";
+import { SavedPathsList, type PathDraft } from "./saved-paths-list";
 import { RouteCanvas, type RouteCanvasHandle } from "./route-canvas";
 import { RouteControls } from "./route-controls";
-import { RouteCoordinateList } from "./route-coordinate-list";
-import { RouteStyleToggle } from "./route-style-toggle";
 
 const DEFAULTS = {
   origin: { x: 100, z: -50 } satisfies Point,
-  destination: { x: 237, z: 184 } satisfies Point,
   hubRadius: 20,
-  tunnelWidth: 3,
-  tunnelHeight: 3,
-  routeStyle: "diagonal" as RouteStyle,
-  invertAxisOrder: false,
 };
 
 export function RoutePlanner() {
   const [origin, setOrigin] = useState<Point>(DEFAULTS.origin);
-  const [destination, setDestination] = useState<Point>(DEFAULTS.destination);
   const [hubRadius, setHubRadius] = useState(DEFAULTS.hubRadius);
-  const [tunnelWidth, setTunnelWidth] = useState(DEFAULTS.tunnelWidth);
-  const [tunnelHeight, setTunnelHeight] = useState(DEFAULTS.tunnelHeight);
-  const [routeStyle, setRouteStyle] = useState<RouteStyle>(DEFAULTS.routeStyle);
-  const [invertAxisOrder, setInvertAxisOrder] = useState(DEFAULTS.invertAxisOrder);
   const [paths, setPaths] = useState<SavedPath[]>([]);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [settingsLoaded, setSettingsLoaded] = useState(false);
 
   const canvasRef = useRef<RouteCanvasHandle>(null);
@@ -47,50 +36,59 @@ export function RoutePlanner() {
   // to reach localStorage before the first client render commits).
   /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
-    const settings = loadSharedSettings();
+    const settings = loadHubSettings();
     if (settings) {
       setOrigin(settings.origin);
       setHubRadius(settings.hubRadius);
-      setTunnelWidth(settings.tunnelWidth);
-      setTunnelHeight(settings.tunnelHeight);
     }
-    setPaths(loadSavedPaths());
+    const loadedPaths = loadSavedPaths();
+    setPaths(loadedPaths);
+    if (loadedPaths.length > 0) setSelectedId(loadedPaths[0].id);
     setSettingsLoaded(true);
   }, []);
   /* eslint-enable react-hooks/set-state-in-effect */
 
   useEffect(() => {
     if (!settingsLoaded) return;
-    persistSharedSettings({ origin, hubRadius, tunnelWidth, tunnelHeight });
-  }, [settingsLoaded, origin, hubRadius, tunnelWidth, tunnelHeight]);
+    persistHubSettings({ origin, hubRadius });
+  }, [settingsLoaded, origin, hubRadius]);
 
-  const result = useMemo(
-    () => planRoute({ origin, destination, hubRadius, tunnelWidth, tunnelHeight, routeStyle, invertAxisOrder }),
-    [origin, destination, hubRadius, tunnelWidth, tunnelHeight, routeStyle, invertAxisOrder],
+  const selectedPath = paths.find((p) => p.id === selectedId) ?? null;
+
+  // The route currently selected in the list, regardless of its canvas
+  // visibility (selection and visibility are independent: hiding a path
+  // only affects whether it's drawn).
+  const selectedResult = useMemo(
+    () =>
+      selectedPath
+        ? planRoute({
+            origin,
+            destination: selectedPath.destination,
+            hubRadius,
+            tunnelWidth: selectedPath.tunnelWidth,
+            routeStyle: selectedPath.routeStyle,
+            invertAxisOrder: selectedPath.invertAxisOrder,
+          })
+        : null,
+    [selectedPath, origin, hubRadius],
   );
 
-  const isCurrentPath = (p: SavedPath) =>
-    p.destination.x === destination.x &&
-    p.destination.z === destination.z &&
-    p.routeStyle === routeStyle &&
-    p.invertAxisOrder === invertAxisOrder;
-
-  // The route line only carries a title when it exactly matches a saved
-  // path (same destination/style/axis order) — an edited-but-unsaved route
-  // has no name to show.
-  const activePathTitle = useMemo(
-    () => paths.find((p) => p.visible && isCurrentPath(p))?.title ?? null,
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [paths, destination, routeStyle, invertAxisOrder],
+  // The canvas's bright, on-top route: the selected path, but only if it's
+  // actually visible — selection never overrides the visibility toggle.
+  const primary = useMemo(
+    () =>
+      selectedPath && selectedPath.visible && selectedResult
+        ? { id: selectedPath.id, title: selectedPath.title, result: selectedResult }
+        : null,
+    [selectedPath, selectedResult],
   );
 
-  // Every other visible saved path is drawn on the canvas alongside the
-  // route currently being edited, sharing the hub center/radius/tunnel
-  // dimensions (those are shared settings, not part of a saved path).
-  const otherVisibleRoutes = useMemo(
+  // Every other visible saved path, drawn muted alongside the primary one,
+  // sharing the hub center/radius (shared settings, not part of any path).
+  const otherRoutes = useMemo(
     () =>
       paths
-        .filter((p) => p.visible && !isCurrentPath(p))
+        .filter((p) => p.visible && p.id !== selectedId)
         .map((p) => ({
           id: p.id,
           title: p.title,
@@ -98,25 +96,18 @@ export function RoutePlanner() {
             origin,
             destination: p.destination,
             hubRadius,
-            tunnelWidth,
-            tunnelHeight,
+            tunnelWidth: p.tunnelWidth,
             routeStyle: p.routeStyle,
             invertAxisOrder: p.invertAxisOrder,
           }),
         })),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [paths, origin, hubRadius, tunnelWidth, tunnelHeight, destination, routeStyle, invertAxisOrder],
+    [paths, selectedId, origin, hubRadius],
   );
 
-  const handleSavePath = (title: string) => {
-    const trimmed = title.trim();
-    if (!trimmed) return;
+  const handleCreatePath = (draft: PathDraft) => {
     const newPath: SavedPath = {
       id: crypto.randomUUID(),
-      title: trimmed,
-      destination,
-      routeStyle,
-      invertAxisOrder,
+      ...draft,
       visible: true,
       savedAt: new Date().toISOString(),
     };
@@ -125,19 +116,12 @@ export function RoutePlanner() {
       persistSavedPaths(next);
       return next;
     });
+    setSelectedId(newPath.id);
   };
 
-  const handleLoadPath = (path: SavedPath) => {
-    setDestination(path.destination);
-    setRouteStyle(path.routeStyle);
-    setInvertAxisOrder(path.invertAxisOrder);
-  };
-
-  const handleRenamePath = (id: string, title: string) => {
-    const trimmed = title.trim();
-    if (!trimmed) return;
+  const handleUpdatePath = (id: string, draft: PathDraft) => {
     setPaths((prev) => {
-      const next = prev.map((p) => (p.id === id ? { ...p, title: trimmed } : p));
+      const next = prev.map((p) => (p.id === id ? { ...p, ...draft } : p));
       persistSavedPaths(next);
       return next;
     });
@@ -149,6 +133,7 @@ export function RoutePlanner() {
       persistSavedPaths(next);
       return next;
     });
+    setSelectedId((current) => (current === id ? null : current));
   };
 
   const handleToggleVisible = (id: string) => {
@@ -163,50 +148,32 @@ export function RoutePlanner() {
     <div className="flex flex-col lg:h-full lg:flex-row">
       <aside className="flex w-full flex-col gap-6 border-neutral-200 p-4 dark:border-neutral-800 lg:h-full lg:w-[340px] lg:shrink-0 lg:overflow-y-auto lg:border-r">
         <div className="flex flex-col gap-4">
-          <h2 className="text-xs font-semibold uppercase tracking-wide text-neutral-400 dark:text-neutral-500">
-            Configuração
-          </h2>
+          <h2 className="text-xs font-semibold uppercase tracking-wide text-neutral-400 dark:text-neutral-500">Hub</h2>
           <CoordinateInput label="Centro do Hub" value={origin} onChange={setOrigin} />
-          <CoordinateInput label="Portal" value={destination} onChange={setDestination} />
-          <div className="grid grid-cols-3 gap-2">
-            <NumberField label="Raio do hub" value={hubRadius} onChange={setHubRadius} min={0} />
-            <NumberField label="Largura do túnel" value={tunnelWidth} onChange={setTunnelWidth} min={1} />
-            <NumberField label="Altura do túnel" value={tunnelHeight} onChange={setTunnelHeight} min={1} />
-          </div>
-          <RouteStyleToggle
-            value={routeStyle}
-            onChange={setRouteStyle}
-            invertAxisOrder={invertAxisOrder}
-            onInvertAxisOrderChange={setInvertAxisOrder}
-          />
+          <NumberField label="Raio do hub" value={hubRadius} onChange={setHubRadius} min={0} />
         </div>
 
         <div className="h-px bg-neutral-200 dark:bg-neutral-800" />
 
         <div className="flex flex-col gap-4">
           <h2 className="text-xs font-semibold uppercase tracking-wide text-neutral-400 dark:text-neutral-500">
-            Caminhos salvos
+            Caminhos
           </h2>
           <SavedPathsList
             paths={paths}
-            currentDestination={destination}
-            currentRouteStyle={routeStyle}
-            currentInvertAxisOrder={invertAxisOrder}
-            onSave={handleSavePath}
-            onLoad={handleLoadPath}
-            onRename={handleRenamePath}
-            onDelete={handleDeletePath}
+            hubOrigin={origin}
+            selectedId={selectedId}
+            onSelect={setSelectedId}
+            onCreate={handleCreatePath}
+            onUpdate={handleUpdatePath}
             onToggleVisible={handleToggleVisible}
+            onDelete={handleDeletePath}
           />
         </div>
-
-        <div className="h-px bg-neutral-200 dark:bg-neutral-800" />
-
-        <RouteCoordinateList blocks={result.tunnel.centerline} />
       </aside>
 
       <main className="relative min-h-[420px] p-4 lg:flex-1">
-        <RouteCanvas ref={canvasRef} result={result} title={activePathTitle} otherRoutes={otherVisibleRoutes} />
+        <RouteCanvas ref={canvasRef} hubOrigin={origin} hubRadius={hubRadius} primary={primary} otherRoutes={otherRoutes} />
         <RouteControls
           onZoomIn={() => canvasRef.current?.zoomIn()}
           onZoomOut={() => canvasRef.current?.zoomOut()}

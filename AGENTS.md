@@ -15,17 +15,20 @@ Given:
 - **Hub radius**: blocks to keep clear of tunnel around the center
 - **Tunnel width**: blocks
 - **Tunnel height**: blocks (used only for volume estimates — the view is 2D)
+- **Route style**: `diagonal` (follow the ideal line exactly, jagged block staircase) or `orthogonal` (two straight axis-aligned legs, an "L", easier to build but doesn't follow the ideal line), plus an axis-order inversion that only applies to `orthogonal`
 
 The app computes and displays:
 
 - ΔX, ΔZ, Euclidean distance, angle, direction (Minecraft compass)
 - The hub circle and the point where the origin→destination line crosses it (that point is the **effective tunnel start** — the hub margin never changes the route's direction, only where it starts being "built")
-- The line's rasterization into blocks (Bresenham) from the tunnel start to the destination
+- The line's rasterization into blocks (Bresenham for `diagonal`, two Bresenham legs for `orthogonal`) from the tunnel start to the destination
 - The block corridor for the configured width, centered on the route's direction (not on the block-by-block rasterized line, to avoid a jagged edge)
 - Approximate area/volume estimates (explicitly labeled as approximate, since the discrete rasterization can overlap itself)
 - A copyable list of the trajectory's coordinates, for use while building in game
 
 Y is not part of any calculation — everything happens on the horizontal X/Z plane.
+
+Portal configurations (portal X/Z, route style, axis inversion) can be saved as named "paths" and reloaded later — see **Saved paths (localStorage)** below.
 
 ## Important math conventions
 
@@ -38,12 +41,22 @@ These decisions are already made and tested — don't rediscover them from scrat
 - **Hub radius 0**: the tunnel starts at the center (origin) itself.
 - **Portal inside the hub radius**: no tunnel to build (`tunnel.length === 0`, `centerline`/`corridorBlocks` empty).
 - **Origin === destination**: handled explicitly in the UI ("origin and destination are the same point"), with no angle/direction computed.
+- **`rasterizeOrthogonalPath`** (`lib/minecraft/line-rasterization.ts`): by default travels the dominant axis (larger of `|dx|`/`|dz|`) first, out of the hub, so the corner sits as close to the destination as possible; ties go to X. `invert: true` swaps to the minor axis first. When start and end already share an axis, both orders degenerate to the same single leg, identical to `rasterizeLine`.
+
+## Saved paths (localStorage)
+
+Portal configurations can be saved, listed, reloaded, renamed, and deleted from the sidebar (`saved-paths-list.tsx`), replacing what used to be a numeric results panel there. Persistence (`lib/storage/route-planner-storage.ts`) is split across **two separate localStorage records**, deliberately not merged:
+
+- `nether-route-planner:paths` — the list of saved paths. Each entry is only the portal-specific fields: title, destination (X, Z), route style, axis inversion.
+- `nether-route-planner:settings` — hub center, hub radius, tunnel width, tunnel height. These are shared by every saved path (one hub, many portals), so they live outside any individual path entry and are persisted automatically whenever they change.
+
+Loading a saved path only overwrites the destination/style/axis-inversion fields in the form — it never touches the hub center or radius/width/height, since those are shared state, not part of the saved path.
 
 ## Stack and architecture
 
 - Next.js (App Router) + TypeScript + React + Tailwind CSS
-- No backend — everything is client-side
-- Vitest for tests (math layer only, 75 tests)
+- No backend — everything is client-side; persistence is browser localStorage only (see **Saved paths** above)
+- Vitest for tests (math layer only, 92 tests)
 - Structure:
   ```
   src/
@@ -52,16 +65,19 @@ These decisions are already made and tested — don't rediscover them from scrat
       route-planner.tsx           # state + composition
       coordinate-input.tsx        # X/Z field pair
       number-field.tsx            # generic numeric field (radius/width/height)
-      route-results.tsx           # numeric results panel
+      route-style-toggle.tsx      # diagonal/orthogonal picker + axis-invert checkbox
+      saved-paths-list.tsx        # save/load/rename/delete saved paths
       route-canvas.tsx            # Canvas2D: grid, hub circle, ideal line, corridor, pan/zoom, compass
       route-controls.tsx          # zoom in/out/center buttons
       route-coordinate-list.tsx   # collapsible list + copy coordinates
     lib/minecraft/                # pure logic, testable, no React dependency
       geometry.ts                 # distance, delta, angle, compass, circle intersection
-      line-rasterization.ts       # Bresenham
+      line-rasterization.ts       # Bresenham + orthogonal ("L"-shaped) path
       tunnel.ts                   # width -> offsets, corridor, area/volume estimates
       coordinates.ts              # world<->screen transforms, zoom/fit
       route.ts                    # planRoute(): composes everything into one result for the UI
+    lib/storage/                  # browser persistence, no React dependency
+      route-planner-storage.ts    # localStorage read/write for saved paths + shared settings
   ```
 
 The math layer (`lib/minecraft`) was implemented and tested first, before any UI — geometry, rasterization, tunnel width, and circle intersection are the parts most worth getting right; the UI is built on top of it, not the other way around.

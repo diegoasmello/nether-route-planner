@@ -12,6 +12,8 @@ export interface RouteCanvasHandle {
 
 interface RouteCanvasProps {
   result: RoutePlanResult;
+  /** Title of the saved path currently shown, if any (drawn as a label over the route line). */
+  title?: string | null;
 }
 
 const COLORS = {
@@ -28,6 +30,8 @@ const COLORS = {
   origin: "#f8fafc",
   destination: "#fb7185",
   hubExit: "#f59e0b",
+  pathLabelBg: "rgba(15, 17, 21, 0.9)",
+  pathLabelText: "#f8fafc",
 } as const;
 
 function niceStep(scale: number, targetPx = 90): number {
@@ -55,7 +59,7 @@ function panViewportByScreenDelta(viewport: Viewport, dxPx: number, dyPx: number
 }
 
 export const RouteCanvas = forwardRef<RouteCanvasHandle, RouteCanvasProps>(function RouteCanvas(
-  { result },
+  { result, title },
   ref,
 ) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -310,6 +314,37 @@ export const RouteCanvas = forwardRef<RouteCanvasHandle, RouteCanvasProps>(funct
       ctx.setLineDash([]);
     }
 
+    // Path title label (like a street name on a map app), placed at the
+    // midpoint of the ideal line. Unlike a real street label, it never
+    // rotates to follow the line's angle — always horizontal and upright,
+    // per the app's own "standard readable position".
+    if (title && !result.isSamePoint) {
+      const midWorld = {
+        x: (result.origin.x + result.destination.x) / 2,
+        z: (result.origin.z + result.destination.z) / 2,
+      };
+      const mid = w2s(midWorld);
+      ctx.font = "bold 13px ui-sans-serif, system-ui, sans-serif";
+      const paddingX = 8;
+      const paddingY = 4;
+      const textWidth = ctx.measureText(title).width;
+      const boxWidth = textWidth + paddingX * 2;
+      const boxHeight = 13 + paddingY * 2;
+      const boxX = mid.x - boxWidth / 2;
+      const boxY = mid.y - boxHeight / 2;
+      ctx.beginPath();
+      ctx.roundRect(boxX, boxY, boxWidth, boxHeight, 5);
+      ctx.fillStyle = COLORS.pathLabelBg;
+      ctx.fill();
+      ctx.strokeStyle = COLORS.idealLine;
+      ctx.lineWidth = 1;
+      ctx.stroke();
+      ctx.fillStyle = COLORS.pathLabelText;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText(title, mid.x, mid.y + 1);
+    }
+
     // Hub exit marker.
     if (result.hub.radius > 0 && !result.hub.withinHub && !result.isSamePoint) {
       const exit = w2s(result.hub.exitPoint);
@@ -359,7 +394,7 @@ export const RouteCanvas = forwardRef<RouteCanvasHandle, RouteCanvasProps>(funct
     ctx.font = "10px ui-sans-serif, system-ui, sans-serif";
     ctx.textAlign = "center";
     ctx.fillText("N", compassX, compassY + 5);
-  }, [result, viewport, size]);
+  }, [result, viewport, size, title]);
 
   return (
     <div ref={containerRef} className="relative h-full w-full overflow-hidden rounded-lg border border-neutral-800">

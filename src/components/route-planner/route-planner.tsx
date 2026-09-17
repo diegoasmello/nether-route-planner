@@ -69,6 +69,20 @@ export function RoutePlanner() {
     [origin, destination, hubRadius, tunnelWidth, tunnelHeight, routeStyle, invertAxisOrder],
   );
 
+  // The route line only carries a title when it exactly matches a saved
+  // path (same destination/style/axis order) — an edited-but-unsaved route
+  // has no name to show.
+  const activePathTitle = useMemo(() => {
+    const match = paths.find(
+      (p) =>
+        p.destination.x === destination.x &&
+        p.destination.z === destination.z &&
+        p.routeStyle === routeStyle &&
+        p.invertAxisOrder === invertAxisOrder,
+    );
+    return match?.title ?? null;
+  }, [paths, destination, routeStyle, invertAxisOrder]);
+
   const handleSavePath = (title: string) => {
     const trimmed = title.trim();
     if (!trimmed) return;
@@ -157,7 +171,7 @@ export function RoutePlanner() {
       </aside>
 
       <main className="relative min-h-[420px] p-4 lg:flex-1">
-        <RouteCanvas ref={canvasRef} result={result} />
+        <RouteCanvas ref={canvasRef} result={result} title={activePathTitle} />
         <RouteControls
           onZoomIn={() => canvasRef.current?.zoomIn()}
           onZoomOut={() => canvasRef.current?.zoomOut()}

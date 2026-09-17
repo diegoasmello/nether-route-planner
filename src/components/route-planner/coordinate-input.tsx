@@ -1,7 +1,7 @@
 "use client";
 
 import type { Point } from "@/lib/minecraft/route";
-import { NumberField } from "./NumberField";
+import { NumberField } from "./number-field";
 
 interface CoordinateInputProps {
   label: string;

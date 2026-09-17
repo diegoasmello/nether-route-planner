@@ -3,7 +3,7 @@
  *
  * All coordinates are real-valued (not yet snapped to a block grid) so that
  * distances, angles and hub-circle intersections stay mathematically exact.
- * Snapping to integer blocks only happens in `lineRasterization.ts`.
+ * Snapping to integer blocks only happens in `line-rasterization.ts`.
  */
 
 export interface Point {

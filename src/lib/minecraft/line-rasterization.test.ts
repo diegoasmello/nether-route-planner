@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { rasterizeLine } from "./lineRasterization";
+import { rasterizeLine } from "./line-rasterization";
 
 describe("rasterizeLine", () => {
   it("returns a single block when start equals end", () => {

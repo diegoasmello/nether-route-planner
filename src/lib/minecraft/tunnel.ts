@@ -6,7 +6,7 @@
  */
 
 import type { Point } from "./geometry";
-import type { BlockCoord } from "./lineRasterization";
+import type { BlockCoord } from "./line-rasterization";
 
 /**
  * Per-axis offsets (in blocks, perpendicular to the route) that make up a

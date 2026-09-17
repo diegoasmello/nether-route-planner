@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { buildTunnelCorridor, estimateTunnelArea, estimateTunnelVolume, widthOffsets } from "./tunnel";
-import { rasterizeLine } from "./lineRasterization";
+import { rasterizeLine } from "./line-rasterization";
 
 describe("widthOffsets", () => {
   it("centers odd widths exactly", () => {

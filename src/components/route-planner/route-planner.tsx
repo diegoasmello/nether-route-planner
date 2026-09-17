@@ -2,12 +2,12 @@
 
 import { useMemo, useRef, useState } from "react";
 import { planRoute, type Point } from "@/lib/minecraft/route";
-import { CoordinateInput } from "./CoordinateInput";
-import { NumberField } from "./NumberField";
-import { RouteResults } from "./RouteResults";
-import { RouteCanvas, type RouteCanvasHandle } from "./RouteCanvas";
-import { RouteControls } from "./RouteControls";
-import { RouteCoordinateList } from "./RouteCoordinateList";
+import { CoordinateInput } from "./coordinate-input";
+import { NumberField } from "./number-field";
+import { RouteResults } from "./route-results";
+import { RouteCanvas, type RouteCanvasHandle } from "./route-canvas";
+import { RouteControls } from "./route-controls";
+import { RouteCoordinateList } from "./route-coordinate-list";
 
 const DEFAULTS = {
   origin: { x: 100, z: -50 } satisfies Point,

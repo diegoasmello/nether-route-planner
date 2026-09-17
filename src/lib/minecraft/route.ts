@@ -15,7 +15,7 @@ import {
   type Delta,
   type Point,
 } from "./geometry";
-import { rasterizeLine, type BlockCoord } from "./lineRasterization";
+import { rasterizeLine, type BlockCoord } from "./line-rasterization";
 import { buildTunnelCorridor, estimateTunnelArea, estimateTunnelVolume } from "./tunnel";
 
 export interface RoutePlanInput {
@@ -96,4 +96,4 @@ export function planRoute(input: RoutePlanInput): RoutePlanResult {
 }
 
 export type { Point, Delta, CompassDirection } from "./geometry";
-export type { BlockCoord } from "./lineRasterization";
+export type { BlockCoord } from "./line-rasterization";

@@ -1,4 +1,4 @@
-import { RoutePlanner } from "@/components/route-planner/RoutePlanner";
+import { RoutePlanner } from "@/components/route-planner/route-planner";
 
 export default function Home() {
   return (

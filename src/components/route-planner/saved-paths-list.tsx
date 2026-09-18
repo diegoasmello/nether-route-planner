@@ -1,5 +1,6 @@
 "use client";
 
+import { Eye, EyeOff, Pencil, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import type { Point, RouteStyle } from "@/lib/minecraft/route";
 import type { SavedPath } from "@/lib/storage/route-planner-storage";
@@ -168,7 +169,7 @@ function RowIconButton({
       onClick={onClick}
       title={title}
       aria-label={title}
-      className={`flex h-[26px] w-[26px] items-center justify-center rounded-[3px] border border-transparent text-[13px] transition-colors ${colorClassName} ${hoverClassName}`}
+      className={`flex h-[26px] w-[26px] items-center justify-center rounded-[3px] border border-transparent transition-colors ${colorClassName} ${hoverClassName}`}
     >
       {children}
     </button>
@@ -295,7 +296,7 @@ export function SavedPathsList({
                       colorClassName={path.visible ? "text-accent-soft" : "text-muted"}
                       hoverClassName="hover:border-border-strong hover:bg-row-hover"
                     >
-                      {path.visible ? "◉" : "○"}
+                      {path.visible ? <Eye size={14} /> : <EyeOff size={14} />}
                     </RowIconButton>
                     <RowIconButton
                       onClick={(e) => {
@@ -306,7 +307,7 @@ export function SavedPathsList({
                       colorClassName={editingId !== null ? "cursor-not-allowed text-muted/50" : "text-secondary"}
                       hoverClassName={editingId === null ? "hover:border-border-strong hover:bg-row-hover hover:text-heading" : ""}
                     >
-                      ✎
+                      <Pencil size={14} />
                     </RowIconButton>
                     <RowIconButton
                       onClick={(e) => {
@@ -319,7 +320,7 @@ export function SavedPathsList({
                         editingId === null ? "hover:border-danger-border hover:bg-danger-hover-bg hover:text-danger-hover-text" : ""
                       }
                     >
-                      ✕
+                      <Trash2 size={14} />
                     </RowIconButton>
                   </div>
                 </div>

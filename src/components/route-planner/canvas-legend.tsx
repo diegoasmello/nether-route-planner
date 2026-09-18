@@ -11,10 +11,13 @@ const ITEMS = [
 
 export function CanvasLegend() {
   return (
-    <div className="pointer-events-none absolute bottom-[18px] left-[18px] right-[74px] flex max-w-max flex-wrap items-center gap-3.5 rounded-[3px] border border-panel-border bg-canvas-overlay px-3 py-[9px] font-mono-ui text-[10.5px] text-secondary">
+    <div className="pointer-events-none absolute bottom-4.5 left-4.5 right-18.5 flex max-w-max flex-wrap items-center gap-3.5 rounded-[3px] border border-panel-border bg-canvas-overlay px-3 py-2.25 font-mono-ui text-[10.5px] text-secondary">
       {ITEMS.map((item) => (
         <span key={item.label} className="flex items-center gap-1.5">
-          <span className="block h-[9px] w-[9px]" style={{ background: item.color }} />
+          <span
+            className="block h-2.25 w-2.25"
+            style={{ background: item.color }}
+          />
           {item.label}
         </span>
       ))}

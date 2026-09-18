@@ -53,7 +53,9 @@ const blankDraft = (hubOrigin: Point): PathDraft => ({
   invertAxisOrder: false,
 });
 
-const describePath = (path: Pick<SavedPath, "destination" | "routeStyle" | "tunnelWidth">) =>
+const describePath = (
+  path: Pick<SavedPath, "destination" | "routeStyle" | "tunnelWidth">,
+) =>
   `X ${path.destination.x} · Z ${path.destination.z} · ${path.routeStyle === "orthogonal" ? "ortogonal" : "diagonal"} · ${path.tunnelWidth} ${
     path.tunnelWidth > 1 ? "blocos" : "bloco"
   }`;
@@ -77,14 +79,20 @@ function PathEditForm({
   onCancel: () => void;
 }) {
   return (
-    <div className="flex flex-col gap-2.5 rounded-[4px] border border-l-[3px] border-panel-border border-l-accent bg-card p-3.5">
+    <div className="flex flex-col gap-2.5 rounded-sm border border-l-[3px] border-panel-border border-l-accent bg-card p-3.5">
       <div className="flex items-center justify-between">
-        <span className="text-[11px] font-bold uppercase tracking-wider text-heading">{formTitle}</span>
-        <span className="font-mono-ui text-[10px] uppercase tracking-wider text-accent">prévia ao vivo</span>
+        <span className="text-[11px] font-bold uppercase tracking-wider text-heading">
+          {formTitle}
+        </span>
+        <span className="font-mono-ui text-[10px] uppercase tracking-wider text-accent">
+          prévia ao vivo
+        </span>
       </div>
 
       <div className="flex flex-col gap-1.5">
-        <label className="text-[10px] uppercase tracking-wider text-secondary">Nome do caminho</label>
+        <label className="text-[10px] uppercase tracking-wider text-secondary">
+          Nome do caminho
+        </label>
         <input
           autoFocus
           type="text"
@@ -103,13 +111,17 @@ function PathEditForm({
           label="Destino X"
           variant="draft"
           value={draft.destination.x}
-          onChange={(x) => onChange({ ...draft, destination: { x, z: draft.destination.z } })}
+          onChange={(x) =>
+            onChange({ ...draft, destination: { x, z: draft.destination.z } })
+          }
         />
         <NumberField
           label="Destino Z"
           variant="draft"
           value={draft.destination.z}
-          onChange={(z) => onChange({ ...draft, destination: { x: draft.destination.x, z } })}
+          onChange={(z) =>
+            onChange({ ...draft, destination: { x: draft.destination.x, z } })
+          }
         />
         <NumberField
           label="Largura"
@@ -124,7 +136,9 @@ function PathEditForm({
         value={draft.routeStyle}
         onChange={(routeStyle) => onChange({ ...draft, routeStyle })}
         invertAxisOrder={draft.invertAxisOrder}
-        onInvertAxisOrderChange={(invertAxisOrder) => onChange({ ...draft, invertAxisOrder })}
+        onInvertAxisOrderChange={(invertAxisOrder) =>
+          onChange({ ...draft, invertAxisOrder })
+        }
         origin={hubOrigin}
         destination={draft.destination}
       />
@@ -169,7 +183,7 @@ function RowIconButton({
       onClick={onClick}
       title={title}
       aria-label={title}
-      className={`flex h-[26px] w-[26px] items-center justify-center rounded-[3px] border border-transparent transition-colors ${colorClassName} ${hoverClassName}`}
+      className={`flex h-6.5 w-6.5 items-center justify-center rounded-[3px] border border-transparent transition-colors ${colorClassName} ${hoverClassName}`}
     >
       {children}
     </button>
@@ -261,8 +275,10 @@ export function SavedPathsList({
             return (
               <div
                 key={path.id}
-                className={`flex flex-col overflow-hidden rounded-[4px] border ${
-                  isSelected ? "border-accent-muted bg-card-selected" : "border-panel-border bg-card"
+                className={`flex flex-col overflow-hidden rounded-sm border ${
+                  isSelected
+                    ? "border-accent-muted bg-card-selected"
+                    : "border-panel-border bg-card"
                 } ${path.visible ? "opacity-100" : "opacity-60"}`}
               >
                 <div
@@ -270,21 +286,30 @@ export function SavedPathsList({
                   role="button"
                   tabIndex={0}
                   onKeyDown={(e) => {
-                    if (e.key === "Enter" || e.key === " ") onSelect(isSelected ? null : path.id);
+                    if (e.key === "Enter" || e.key === " ")
+                      onSelect(isSelected ? null : path.id);
                   }}
                   aria-pressed={isSelected}
                   className="flex cursor-pointer items-center gap-2.5 px-2.5 py-2.5"
                 >
                   <span
-                    className={`h-[9px] w-[9px] shrink-0 rounded-[1px] ${
-                      isSelected ? "bg-accent" : path.visible ? "bg-dot-idle" : "bg-dot-hidden"
+                    className={`h-2.25 w-2.25 shrink-0 rounded-[1px] ${
+                      isSelected
+                        ? "bg-accent"
+                        : path.visible
+                          ? "bg-dot-idle"
+                          : "bg-dot-hidden"
                     }`}
                   />
                   <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-                    <span className={`truncate text-[13px] font-semibold ${isSelected ? "text-primary-strong" : "text-primary"}`}>
+                    <span
+                      className={`truncate text-[13px] font-semibold ${isSelected ? "text-primary-strong" : "text-primary"}`}
+                    >
                       {path.title}
                     </span>
-                    <span className="truncate font-mono-ui text-[10.5px] text-faint">{describePath(path)}</span>
+                    <span className="truncate font-mono-ui text-[10.5px] text-faint">
+                      {describePath(path)}
+                    </span>
                   </div>
                   <div className="flex shrink-0 items-center gap-0.5">
                     <RowIconButton
@@ -292,8 +317,12 @@ export function SavedPathsList({
                         e.stopPropagation();
                         onToggleVisible(path.id);
                       }}
-                      title={path.visible ? "Ocultar no canvas" : "Exibir no canvas"}
-                      colorClassName={path.visible ? "text-accent-soft" : "text-muted"}
+                      title={
+                        path.visible ? "Ocultar no canvas" : "Exibir no canvas"
+                      }
+                      colorClassName={
+                        path.visible ? "text-accent-soft" : "text-muted"
+                      }
                       hoverClassName="hover:border-border-strong hover:bg-row-hover"
                     >
                       {path.visible ? <Eye size={14} /> : <EyeOff size={14} />}
@@ -304,8 +333,16 @@ export function SavedPathsList({
                         if (editingId === null) startEditing(path);
                       }}
                       title="Editar"
-                      colorClassName={editingId !== null ? "cursor-not-allowed text-muted/50" : "text-secondary"}
-                      hoverClassName={editingId === null ? "hover:border-border-strong hover:bg-row-hover hover:text-heading" : ""}
+                      colorClassName={
+                        editingId !== null
+                          ? "cursor-not-allowed text-muted/50"
+                          : "text-secondary"
+                      }
+                      hoverClassName={
+                        editingId === null
+                          ? "hover:border-border-strong hover:bg-row-hover hover:text-heading"
+                          : ""
+                      }
                     >
                       <Pencil size={14} />
                     </RowIconButton>
@@ -315,9 +352,15 @@ export function SavedPathsList({
                         if (editingId === null) setConfirmDeleteId(path.id);
                       }}
                       title="Excluir"
-                      colorClassName={editingId !== null ? "cursor-not-allowed text-muted/50" : "text-secondary"}
+                      colorClassName={
+                        editingId !== null
+                          ? "cursor-not-allowed text-muted/50"
+                          : "text-secondary"
+                      }
                       hoverClassName={
-                        editingId === null ? "hover:border-danger-border hover:bg-danger-hover-bg hover:text-danger-hover-text" : ""
+                        editingId === null
+                          ? "hover:border-danger-border hover:bg-danger-hover-bg hover:text-danger-hover-text"
+                          : ""
                       }
                     >
                       <Trash2 size={14} />
@@ -326,7 +369,9 @@ export function SavedPathsList({
                 </div>
                 {isConfirming ? (
                   <div className="flex items-center gap-2 border-t border-danger-border bg-danger-bg px-2.5 py-2">
-                    <span className="flex-1 font-mono-ui text-[11px] text-danger-text">Excluir este caminho?</span>
+                    <span className="flex-1 font-mono-ui text-[11px] text-danger-text">
+                      Excluir este caminho?
+                    </span>
                     <button
                       type="button"
                       onClick={() => {
@@ -350,8 +395,9 @@ export function SavedPathsList({
             );
           })}
         {paths.length === 0 ? (
-          <p className="rounded-[4px] border border-dashed border-border p-4 text-center font-mono-ui text-[11.5px] leading-relaxed text-muted">
-            Nenhum caminho ainda. Crie o primeiro túnel radiando do centro do hub.
+          <p className="rounded-sm border border-dashed border-border p-4 text-center font-mono-ui text-[11.5px] leading-relaxed text-muted">
+            Nenhum caminho ainda. Crie o primeiro túnel radiando do centro do
+            hub.
           </p>
         ) : null}
       </div>

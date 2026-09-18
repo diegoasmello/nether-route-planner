@@ -13,7 +13,11 @@ import { CanvasCompass } from "./canvas-compass";
 import { CanvasLegend } from "./canvas-legend";
 import { NumberField } from "./number-field";
 import { OptionalNumberField } from "./optional-number-field";
-import { SavedPathsList, type EditingPreview, type PathDraft } from "./saved-paths-list";
+import {
+  SavedPathsList,
+  type EditingPreview,
+  type PathDraft,
+} from "./saved-paths-list";
 import { RouteCanvas, type RouteCanvasHandle } from "./route-canvas";
 import { RouteControls } from "./route-controls";
 import { RouteSummary, type RouteSummaryTarget } from "./route-summary";
@@ -31,7 +35,9 @@ export function RoutePlanner() {
   const [portalWidth, setPortalWidth] = useState<number | undefined>(undefined);
   const [paths, setPaths] = useState<SavedPath[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [editingPreview, setEditingPreview] = useState<EditingPreview | null>(null);
+  const [editingPreview, setEditingPreview] = useState<EditingPreview | null>(
+    null,
+  );
   const [settingsLoaded, setSettingsLoaded] = useState(false);
 
   const canvasRef = useRef<RouteCanvasHandle>(null);
@@ -96,10 +102,18 @@ export function RoutePlanner() {
         routeStyle: draft.routeStyle,
         invertAxisOrder: draft.invertAxisOrder,
       });
-      return { id: editingPreview.editingId, title: draft.title, result: previewResult };
+      return {
+        id: editingPreview.editingId,
+        title: draft.title,
+        result: previewResult,
+      };
     }
     return selectedPath && selectedPath.visible && selectedResult
-      ? { id: selectedPath.id, title: selectedPath.title, result: selectedResult }
+      ? {
+          id: selectedPath.id,
+          title: selectedPath.title,
+          result: selectedResult,
+        }
       : null;
   }, [editingPreview, origin, hubRadius, selectedPath, selectedResult]);
 
@@ -166,7 +180,9 @@ export function RoutePlanner() {
 
   const handleToggleVisible = (id: string) => {
     setPaths((prev) => {
-      const next = prev.map((p) => (p.id === id ? { ...p, visible: !p.visible } : p));
+      const next = prev.map((p) =>
+        p.id === id ? { ...p, visible: !p.visible } : p,
+      );
       persistSavedPaths(next);
       return next;
     });
@@ -183,8 +199,12 @@ export function RoutePlanner() {
       ? { title: selectedPath.title, result: selectedResult }
       : null;
 
-  const portalCapacityActive = Boolean(portalCount && portalWidth && portalCount > 0 && portalWidth > 0);
-  const portalHint = portalCapacityActive ? `${Math.floor(portalCount!)} slots ativos` : "inativa";
+  const portalCapacityActive = Boolean(
+    portalCount && portalWidth && portalCount > 0 && portalWidth > 0,
+  );
+  const portalHint = portalCapacityActive
+    ? `${Math.floor(portalCount!)} slots ativos`
+    : "inativa";
   const hubNote =
     hubRadius === 0
       ? "Raio 0 — os túneis começam no próprio centro do hub."
@@ -194,25 +214,44 @@ export function RoutePlanner() {
 
   return (
     <div className="flex flex-col lg:h-full lg:flex-row">
-      <aside className="flex w-full flex-col border-panel-border bg-panel lg:h-full lg:w-[356px] lg:min-w-[260px] lg:shrink-0 lg:overflow-hidden lg:border-r">
+      <aside className="flex w-full flex-col border-panel-border bg-panel lg:h-full lg:w-89 lg:min-w-65 lg:shrink-0 lg:overflow-hidden lg:border-r">
         <SidebarHeader />
 
         <div className="flex flex-col gap-5.5 overflow-y-auto px-4.5 pb-7 pt-4 lg:min-h-0 lg:flex-1">
           <section className="flex flex-col gap-2.5">
             <div className="flex items-baseline justify-between gap-2">
-              <h2 className="text-[11px] font-bold uppercase tracking-[0.18em] text-accent-soft">Hub</h2>
-              <span className="font-mono-ui text-[10px] uppercase tracking-wider text-muted">salvo automaticamente</span>
+              <h2 className="text-[11px] font-bold uppercase tracking-[0.18em] text-accent-soft">
+                Hub
+              </h2>
+              <span className="font-mono-ui text-[10px] uppercase tracking-wider text-muted">
+                salvo automaticamente
+              </span>
             </div>
 
             <div className="grid grid-cols-3 gap-2">
-              <NumberField label="Centro X" value={origin.x} onChange={(x) => setOrigin({ x, z: origin.z })} />
-              <NumberField label="Centro Z" value={origin.z} onChange={(z) => setOrigin({ x: origin.x, z })} />
-              <NumberField label="Raio" value={hubRadius} onChange={setHubRadius} min={0} />
+              <NumberField
+                label="Centro X"
+                value={origin.x}
+                onChange={(x) => setOrigin({ x, z: origin.z })}
+              />
+              <NumberField
+                label="Centro Z"
+                value={origin.z}
+                onChange={(z) => setOrigin({ x: origin.x, z })}
+              />
+              <NumberField
+                label="Raio"
+                value={hubRadius}
+                onChange={setHubRadius}
+                min={0}
+              />
             </div>
 
-            <div className="flex flex-col gap-2 rounded-[4px] border border-dashed border-border bg-card p-2.5">
+            <div className="flex flex-col gap-2 rounded-sm border border-dashed border-border bg-card p-2.5">
               <div className="flex items-center justify-between gap-2">
-                <span className="text-[10.5px] uppercase tracking-wider text-primary">Capacidade de portais</span>
+                <span className="text-[10.5px] uppercase tracking-wider text-primary">
+                  Capacidade de portais
+                </span>
                 <span
                   className={`font-mono-ui text-[10px] uppercase tracking-wider ${portalCapacityActive ? "text-orange" : "text-muted"}`}
                 >
@@ -220,12 +259,24 @@ export function RoutePlanner() {
                 </span>
               </div>
               <div className="grid grid-cols-2 gap-2">
-                <OptionalNumberField label="Quantidade" value={portalCount} onChange={setPortalCount} min={1} />
-                <OptionalNumberField label="Largura (blocos)" value={portalWidth} onChange={setPortalWidth} min={1} />
+                <OptionalNumberField
+                  label="Quantidade"
+                  value={portalCount}
+                  onChange={setPortalCount}
+                  min={1}
+                />
+                <OptionalNumberField
+                  label="Largura (blocos)"
+                  value={portalWidth}
+                  onChange={setPortalWidth}
+                  min={1}
+                />
               </div>
             </div>
 
-            <p className="font-mono-ui text-[11px] leading-relaxed text-muted">{hubNote}</p>
+            <p className="font-mono-ui text-[11px] leading-relaxed text-muted">
+              {hubNote}
+            </p>
           </section>
 
           <section className="flex flex-col gap-2.5">
@@ -243,13 +294,18 @@ export function RoutePlanner() {
           </section>
 
           <section className="flex flex-col gap-2.5">
-            <h2 className="text-[11px] font-bold uppercase tracking-[0.18em] text-orange">Rota calculada</h2>
-            <RouteSummary target={summaryRoute} previewing={editingPreview !== null} />
+            <h2 className="text-[11px] font-bold uppercase tracking-[0.18em] text-orange">
+              Rota calculada
+            </h2>
+            <RouteSummary
+              target={summaryRoute}
+              previewing={editingPreview !== null}
+            />
           </section>
         </div>
       </aside>
 
-      <main className="relative min-h-[420px] lg:flex-1">
+      <main className="relative min-h-105 lg:flex-1">
         <RouteCanvas
           ref={canvasRef}
           hubOrigin={origin}

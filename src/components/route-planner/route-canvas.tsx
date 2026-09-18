@@ -124,20 +124,28 @@ export const RouteCanvas = forwardRef<RouteCanvasHandle, RouteCanvasProps>(
       lastY: number;
     } | null>(null);
 
+    // With no paths registered yet, the only thing to fit is the hub circle
+    // itself, which `fitViewport`'s tight pixel padding would then blow up to
+    // fill nearly the whole canvas — a jarring "wall of blocks" on first
+    // visit. Pad the fit bounds out to several hub radii in that case so the
+    // initial view stays zoomed out.
+    const hasAnyPath = Boolean(primary) || otherRoutes.length > 0;
+
     const fitPoints = useMemo(() => {
       const points = [hubOrigin];
       if (primary) points.push(primary.result.destination);
       for (const other of otherRoutes) points.push(other.result.destination);
       if (hubRadius > 0) {
+        const margin = hasAnyPath ? hubRadius : hubRadius * 4;
         points.push(
-          { x: hubOrigin.x - hubRadius, z: hubOrigin.z },
-          { x: hubOrigin.x + hubRadius, z: hubOrigin.z },
-          { x: hubOrigin.x, z: hubOrigin.z - hubRadius },
-          { x: hubOrigin.x, z: hubOrigin.z + hubRadius },
+          { x: hubOrigin.x - margin, z: hubOrigin.z },
+          { x: hubOrigin.x + margin, z: hubOrigin.z },
+          { x: hubOrigin.x, z: hubOrigin.z - margin },
+          { x: hubOrigin.x, z: hubOrigin.z + margin },
         );
       }
       return points;
-    }, [hubOrigin, hubRadius, primary, otherRoutes]);
+    }, [hubOrigin, hubRadius, primary, otherRoutes, hasAnyPath]);
 
     const centerRoute = useCallback(() => {
       if (size.width === 0 || size.height === 0) return;

@@ -11,6 +11,7 @@ import {
 } from "@/lib/storage/route-planner-storage";
 import { CoordinateInput } from "./coordinate-input";
 import { NumberField } from "./number-field";
+import { OptionalNumberField } from "./optional-number-field";
 import { SavedPathsList, type EditingPreview, type PathDraft } from "./saved-paths-list";
 import { RouteCanvas, type RouteCanvasHandle } from "./route-canvas";
 import { RouteControls } from "./route-controls";
@@ -23,6 +24,8 @@ const DEFAULTS = {
 export function RoutePlanner() {
   const [origin, setOrigin] = useState<Point>(DEFAULTS.origin);
   const [hubRadius, setHubRadius] = useState(DEFAULTS.hubRadius);
+  const [portalCount, setPortalCount] = useState<number | undefined>(undefined);
+  const [portalWidth, setPortalWidth] = useState<number | undefined>(undefined);
   const [paths, setPaths] = useState<SavedPath[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [editingPreview, setEditingPreview] = useState<EditingPreview | null>(null);
@@ -41,6 +44,8 @@ export function RoutePlanner() {
     if (settings) {
       setOrigin(settings.origin);
       setHubRadius(settings.hubRadius);
+      setPortalCount(settings.portalCount);
+      setPortalWidth(settings.portalWidth);
     }
     const loadedPaths = loadSavedPaths();
     setPaths(loadedPaths);
@@ -51,8 +56,8 @@ export function RoutePlanner() {
 
   useEffect(() => {
     if (!settingsLoaded) return;
-    persistHubSettings({ origin, hubRadius });
-  }, [settingsLoaded, origin, hubRadius]);
+    persistHubSettings({ origin, hubRadius, portalCount, portalWidth });
+  }, [settingsLoaded, origin, hubRadius, portalCount, portalWidth]);
 
   const selectedPath = paths.find((p) => p.id === selectedId) ?? null;
 
@@ -173,6 +178,21 @@ export function RoutePlanner() {
           <h2 className="text-xs font-semibold uppercase tracking-wide text-neutral-400 dark:text-neutral-500">Hub</h2>
           <CoordinateInput label="Centro do Hub" value={origin} onChange={setOrigin} />
           <NumberField label="Raio do hub" value={hubRadius} onChange={setHubRadius} min={0} />
+          <OptionalNumberField
+            label="Quantidade de portais"
+            value={portalCount}
+            onChange={setPortalCount}
+            min={1}
+            placeholder="Não definido"
+          />
+          <OptionalNumberField
+            label="Largura dos portais"
+            value={portalWidth}
+            onChange={setPortalWidth}
+            min={1}
+            suffix="blocos"
+            placeholder="Não definido"
+          />
         </div>
 
         <div className="h-px bg-neutral-200 dark:bg-neutral-800" />
@@ -196,7 +216,15 @@ export function RoutePlanner() {
       </aside>
 
       <main className="relative min-h-[420px] p-4 lg:flex-1">
-        <RouteCanvas ref={canvasRef} hubOrigin={origin} hubRadius={hubRadius} primary={primary} otherRoutes={otherRoutes} />
+        <RouteCanvas
+          ref={canvasRef}
+          hubOrigin={origin}
+          hubRadius={hubRadius}
+          portalCount={portalCount}
+          portalWidth={portalWidth}
+          primary={primary}
+          otherRoutes={otherRoutes}
+        />
         <RouteControls
           onZoomIn={() => canvasRef.current?.zoomIn()}
           onZoomOut={() => canvasRef.current?.zoomOut()}

@@ -26,6 +26,17 @@ export interface SavedPath {
 export interface HubSettings {
   readonly origin: Point;
   readonly hubRadius: number;
+  /**
+   * How many portals the hub is built to support, and the width (in
+   * blocks) reserved for each one on the hub's perimeter. Both are
+   * optional and independent of each other and of the paths list — not
+   * every hub is built to its maximum portal capacity, and any leftover
+   * perimeter space is left for the player to use freely. Painting the
+   * portal slots on the canvas requires both to be set; either missing
+   * (or non-positive) means the feature is off, not a fallback value.
+   */
+  readonly portalCount?: number;
+  readonly portalWidth?: number;
 }
 
 /** Fallback for paths saved before `tunnelWidth` moved from shared settings onto each path. */
@@ -90,6 +101,10 @@ export function persistSavedPaths(paths: readonly SavedPath[]): void {
   }
 }
 
+function isPositiveNumber(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value) && value > 0;
+}
+
 export function loadHubSettings(): HubSettings | null {
   if (typeof window === "undefined") return null;
   try {
@@ -102,6 +117,8 @@ export function loadHubSettings(): HubSettings | null {
     return {
       origin: parsed.origin,
       hubRadius: parsed.hubRadius,
+      portalCount: isPositiveNumber(parsed.portalCount) ? parsed.portalCount : undefined,
+      portalWidth: isPositiveNumber(parsed.portalWidth) ? parsed.portalWidth : undefined,
     };
   } catch {
     return null;

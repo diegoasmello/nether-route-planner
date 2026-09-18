@@ -3,6 +3,7 @@
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
 import { clampScale, fitViewport, screenToWorld, worldToScreen, type ScreenPoint, type Viewport } from "@/lib/minecraft/coordinates";
 import { rasterizeCircle } from "@/lib/minecraft/line-rasterization";
+import { distributePortalsOnHub } from "@/lib/minecraft/portals";
 import type { Point, RoutePlanResult } from "@/lib/minecraft/route";
 
 export interface RouteCanvasHandle {
@@ -21,6 +22,14 @@ interface RouteCanvasProps {
   /** Hub center + radius are drawn once, independent of any path (see AGENTS.md's hub/paths mental model). */
   hubOrigin: Point;
   hubRadius: number;
+  /**
+   * Optional hub-level portal capacity: how many portal slots the hub is
+   * built for and how wide each one is. Both must be set (and positive)
+   * for anything to be painted — independent of the paths list; see
+   * `distributePortalsOnHub`.
+   */
+  portalCount?: number;
+  portalWidth?: number;
   /** The selected path, if any: drawn in full color, on top, with the fixed "Portal" label. */
   primary: NamedRoute | null;
   /** Every other visible saved path, drawn muted underneath the primary one. */
@@ -35,6 +44,7 @@ const COLORS = {
   axisText: "#8b93a3",
   hubStroke: "#f59e0b",
   hubFill: "rgba(245, 158, 11, 0.08)",
+  portalSlot: "#22d3ee",
   accent: "#38bdf8",
   corridorFill: "rgba(16, 185, 129, 0.35)",
   centerlineStroke: "#34d399",
@@ -76,7 +86,7 @@ function panViewportByScreenDelta(viewport: Viewport, dxPx: number, dyPx: number
 }
 
 export const RouteCanvas = forwardRef<RouteCanvasHandle, RouteCanvasProps>(function RouteCanvas(
-  { hubOrigin, hubRadius, primary, otherRoutes },
+  { hubOrigin, hubRadius, portalCount, portalWidth, primary, otherRoutes },
   ref,
 ) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -305,6 +315,19 @@ export const RouteCanvas = forwardRef<RouteCanvasHandle, RouteCanvasProps>(funct
         const s = w2s(block);
         ctx.fillRect(s.x - blockPx / 2, s.y - blockPx / 2, blockPx, blockPx);
       }
+
+      // Portal capacity slots (optional, hub-level, independent of the
+      // paths list — see AGENTS.md/`distributePortalsOnHub`): painted on
+      // top of the plain perimeter blocks above, in their own color.
+      if (portalCount && portalWidth) {
+        ctx.fillStyle = COLORS.portalSlot;
+        for (const slot of distributePortalsOnHub(hubOrigin, hubRadius, portalCount, portalWidth)) {
+          for (const block of slot.blocks) {
+            const s = w2s(block);
+            ctx.fillRect(s.x - blockPx / 2, s.y - blockPx / 2, blockPx, blockPx);
+          }
+        }
+      }
     }
 
     // Draws one path's corridor/centerline/title/markers. Shared between
@@ -427,7 +450,7 @@ export const RouteCanvas = forwardRef<RouteCanvasHandle, RouteCanvasProps>(funct
     ctx.font = "10px ui-sans-serif, system-ui, sans-serif";
     ctx.textAlign = "center";
     ctx.fillText("N", compassX, compassY + 5);
-  }, [hubOrigin, hubRadius, primary, otherRoutes, viewport, size]);
+  }, [hubOrigin, hubRadius, portalCount, portalWidth, primary, otherRoutes, viewport, size]);
 
   return (
     <div ref={containerRef} className="relative h-full w-full overflow-hidden rounded-lg border border-neutral-800">

@@ -10,7 +10,7 @@ This is not a generic coordinate calculator — it's purpose-built for that work
 
 The app's data — and its UI — is deliberately split into two levels, and the two must never be conflated:
 
-1. **Hub settings**: hub center (X, Z) and hub radius. There is exactly one hub. Shown in a fixed "Hub" section at the top of the sidebar, always visible, edited inline (every change persists immediately — no explicit save step).
+1. **Hub settings**: hub center (X, Z), hub radius, and an optional portal capacity (how many portal slots the hub is built for, and their width). There is exactly one hub. Shown in a fixed "Hub" section at the top of the sidebar, always visible, edited inline (every change persists immediately — no explicit save step).
 2. **Paths**: a list of portals radiating from that hub. Each path is a fully self-contained record: portal destination (X, Z), tunnel width, route style (`diagonal`/`orthogonal`), and axis order (only meaningful for `orthogonal`). Shown in a "Caminhos" section below, as a list — there is no separate "current route being edited" living outside that list; the list itself is the only source of truth for path data.
 
 This split exists in the code exactly as it does in the UI: `HubSettings` and `SavedPath` are two separate types with no overlapping fields (`lib/storage/route-planner-storage.ts`), and the sidebar has two correspondingly separate sections (`route-planner.tsx`). Don't reintroduce a field shared between them (e.g. moving tunnel width back onto the hub) without deliberately revisiting this split.
@@ -21,6 +21,7 @@ Given, per hub:
 
 - **Origin** (hub center): X, Z
 - **Hub radius**: blocks to keep clear of tunnel around the center
+- **Portal capacity** (optional): how many portal slots the hub supports, and their width in blocks — both must be set for anything to render; see **Portal capacity** below
 
 Given, per path:
 
@@ -39,6 +40,15 @@ For the selected path, the app computes and displays:
 Y is not part of any calculation — everything happens on the horizontal X/Z plane.
 
 The canvas draws only the actual built path for each visible path — the rasterized `tunnel.centerline`/corridor (diagonal staircase or the two orthogonal legs) — with no separate straight origin→destination overlay. Every visible path's title is drawn as a label at the midpoint of that centerline (like a street name on a map app) — but always kept **horizontal**, never rotated to the line's angle, unlike a real map's street labels. The canvas renders **every visible path at once**: the selected path draws in full color on top; every other visible path draws underneath in a muted violet, so the selected one stays visually dominant. A path's visibility toggle (in the sidebar list) is independent of selection — hiding the selected path removes it from the canvas even though it's still selected.
+
+## Portal capacity (optional hub setting)
+
+A hub can optionally declare how many portals it's built to support (`portalCount`) and how wide each one is (`portalWidth`, in blocks) — both live on `HubSettings`, not on any path. This is deliberately **not** tied to the paths list: it's a "how many slots fit" visualization, not a claim that every slot has a configured destination. Not every hub is built to its maximum capacity, and any leftover perimeter space is left for the player to place portals wherever they like — so:
+
+- Both fields are optional and independent. Rendering the slots requires **both** to be set (positive numbers); either missing/blank is treated as "feature off", not filled in with a fallback value like `tunnelWidth`'s default of 3.
+- `distributePortalsOnHub` (`lib/minecraft/portals.ts`) computes the slots: it takes the hub's already-pixelated perimeter (`rasterizeCircle`), sorts those blocks by `angleFromXAxis` around the hub center, and spaces `portalCount` slots evenly by position in that ordering — portal `#0` anchored at angle 0 (East, +X). Each slot is a contiguous run of `portalWidth` perimeter blocks, using the same `widthOffsets` even/odd centering convention as tunnel width.
+- If `portalCount * portalWidth` exceeds the perimeter length, slots overlap — this is intentionally left unvalidated; the drawing itself shows the problem rather than the app second-guessing the user's numbers.
+- On the canvas, slot blocks are painted in their own color, layered on top of the hub's plain perimeter blocks (`route-canvas.tsx`).
 
 ## Important math conventions
 
@@ -68,19 +78,20 @@ The list in the sidebar (`saved-paths-list.tsx`) is a deliberate choice, made ex
 `lib/storage/route-planner-storage.ts` splits state across **two separate localStorage records**, deliberately not merged — mirroring the hub/paths split above:
 
 - `nether-route-planner:paths` — the list of paths. Each entry: `id`, `title`, `destination` (X, Z), `tunnelWidth`, `routeStyle`, `invertAxisOrder`, `visible` (canvas visibility), `savedAt`.
-- `nether-route-planner:settings` — hub `origin` and `hubRadius` only. Persisted automatically whenever either changes (no explicit save step, unlike paths — see **interaction model** above).
+- `nether-route-planner:settings` — hub `origin`, `hubRadius`, and the optional `portalCount`/`portalWidth` (see **Portal capacity** above). Persisted automatically whenever any of them changes (no explicit save step, unlike paths — see **interaction model** above).
 
 Both loaders normalize missing fields on stored entries rather than rejecting them, and ignore unrecognized extra fields rather than treating them as invalid:
 
 - `visible` missing on a path → normalized to `true`.
 - `tunnelWidth` missing on a path → normalized to `3` (`DEFAULT_TUNNEL_WIDTH` in that file).
 - `loadHubSettings` only requires `origin`/`hubRadius` to be present and well-typed; any other fields on the stored object are ignored.
+- `portalCount`/`portalWidth` missing or not a positive number → normalized to `undefined` each, independently (not to a fallback default — see **Portal capacity** above for why).
 
 ## Stack and architecture
 
 - Next.js (App Router) + TypeScript + React + Tailwind CSS
 - No backend — everything is client-side; persistence is browser localStorage only (see **Persistence** above)
-- Vitest for tests (math layer only, 91 tests)
+- Vitest for tests (math layer only, 106 tests)
 - Structure:
   ```
   src/
@@ -88,15 +99,17 @@ Both loaders normalize missing fields on stored entries rather than rejecting th
     components/route-planner/     # UI (client components)
       route-planner.tsx           # state + composition: hub settings, paths list, selection, canvas wiring
       coordinate-input.tsx        # X/Z field pair
-      number-field.tsx            # generic numeric field (radius/width)
+      number-field.tsx            # generic numeric field (radius/width), always required
+      optional-number-field.tsx   # like number-field, but empty is a valid "unset" state (portal count/width)
       route-style-toggle.tsx      # diagonal/orthogonal picker + axis-invert checkbox
       saved-paths-list.tsx        # the paths list: select/create/edit/delete/show-hide, edit-with-confirmation form
-      route-canvas.tsx            # Canvas2D: grid, hub circle, centerline/corridor, path title labels, pan/zoom, compass — draws the hub once plus every visible path (selected path full color on top, others muted underneath)
+      route-canvas.tsx            # Canvas2D: grid, hub circle, portal capacity slots, centerline/corridor, path title labels, pan/zoom, compass — draws the hub once plus every visible path (selected path full color on top, others muted underneath)
       route-controls.tsx          # zoom in/out/center buttons
     lib/minecraft/                # pure logic, testable, no React dependency
       geometry.ts                 # distance, delta, angle, compass, circle intersection
-      line-rasterization.ts       # Bresenham + orthogonal ("L"-shaped) path
+      line-rasterization.ts       # Bresenham + orthogonal ("L"-shaped) path + hub-circle rasterization
       tunnel.ts                   # width -> offsets, corridor, area estimate
+      portals.ts                  # distributes optional hub portal capacity around the pixelated perimeter
       coordinates.ts              # world<->screen transforms, zoom/fit
       route.ts                    # planRoute(): composes everything into one result for the UI, for a single path at a time
     lib/storage/                  # browser persistence, no React dependency

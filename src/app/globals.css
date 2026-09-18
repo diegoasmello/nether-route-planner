@@ -16,6 +16,7 @@
   --color-chip: #212129;
   --color-chip-hover: #2d2d3a;
   --color-row-hover: #242430;
+  --color-canvas-overlay: rgba(19, 15, 27, 0.9);
 
   /* Borders */
   --color-border: #383842;

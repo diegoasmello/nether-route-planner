@@ -9,6 +9,8 @@ import {
   persistSavedPaths,
   type SavedPath,
 } from "@/lib/storage/route-planner-storage";
+import { CanvasCompass } from "./canvas-compass";
+import { CanvasLegend } from "./canvas-legend";
 import { NumberField } from "./number-field";
 import { OptionalNumberField } from "./optional-number-field";
 import { SavedPathsList, type EditingPreview, type PathDraft } from "./saved-paths-list";
@@ -249,7 +251,7 @@ export function RoutePlanner() {
         </div>
       </aside>
 
-      <main className="relative min-h-[420px] p-4 lg:flex-1">
+      <main className="relative min-h-[420px] lg:flex-1">
         <RouteCanvas
           ref={canvasRef}
           hubOrigin={origin}
@@ -264,6 +266,8 @@ export function RoutePlanner() {
           onZoomOut={() => canvasRef.current?.zoomOut()}
           onCenter={() => canvasRef.current?.centerRoute()}
         />
+        <CanvasLegend />
+        <CanvasCompass />
       </main>
     </div>
   );

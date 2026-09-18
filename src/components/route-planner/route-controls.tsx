@@ -4,14 +4,24 @@ interface RouteControlsProps {
   onCenter: () => void;
 }
 
-function ControlButton({ onClick, label, children }: { onClick: () => void; label: string; children: React.ReactNode }) {
+function ControlButton({
+  onClick,
+  label,
+  fontSizeClassName,
+  children,
+}: {
+  onClick: () => void;
+  label: string;
+  fontSizeClassName: string;
+  children: React.ReactNode;
+}) {
   return (
     <button
       type="button"
       onClick={onClick}
       aria-label={label}
       title={label}
-      className="flex h-8 w-8 items-center justify-center rounded-md bg-neutral-900/80 text-sm font-medium text-neutral-200 backdrop-blur transition-colors hover:bg-neutral-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
+      className={`flex h-[38px] w-[38px] items-center justify-center rounded-[3px] border border-border bg-canvas-overlay font-mono-ui text-accent-strong transition-colors hover:border-accent hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-accent ${fontSizeClassName}`}
     >
       {children}
     </button>
@@ -20,15 +30,15 @@ function ControlButton({ onClick, label, children }: { onClick: () => void; labe
 
 export function RouteControls({ onZoomIn, onZoomOut, onCenter }: RouteControlsProps) {
   return (
-    <div className="absolute right-3 top-3 flex flex-col gap-1.5">
-      <ControlButton onClick={onZoomIn} label="Aumentar zoom">
+    <div className="absolute bottom-[18px] right-[18px] flex flex-col gap-1.5">
+      <ControlButton onClick={onZoomIn} label="Zoom +" fontSizeClassName="text-[17px]">
         +
       </ControlButton>
-      <ControlButton onClick={onZoomOut} label="Diminuir zoom">
+      <ControlButton onClick={onZoomOut} label="Zoom −" fontSizeClassName="text-[17px]">
         −
       </ControlButton>
-      <ControlButton onClick={onCenter} label="Centralizar rota">
-        ⤢
+      <ControlButton onClick={onCenter} label="Centralizar todos os caminhos visíveis" fontSizeClassName="text-[13px]">
+        ⤧
       </ControlButton>
     </div>
   );

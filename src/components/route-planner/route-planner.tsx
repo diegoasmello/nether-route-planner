@@ -9,12 +9,13 @@ import {
   persistSavedPaths,
   type SavedPath,
 } from "@/lib/storage/route-planner-storage";
-import { CoordinateInput } from "./coordinate-input";
 import { NumberField } from "./number-field";
 import { OptionalNumberField } from "./optional-number-field";
 import { SavedPathsList, type EditingPreview, type PathDraft } from "./saved-paths-list";
 import { RouteCanvas, type RouteCanvasHandle } from "./route-canvas";
 import { RouteControls } from "./route-controls";
+import { RouteSummary, type RouteSummaryTarget } from "./route-summary";
+import { SidebarHeader } from "./sidebar-header";
 
 const DEFAULTS = {
   origin: { x: 100, z: -50 } satisfies Point,
@@ -171,47 +172,80 @@ export function RoutePlanner() {
     });
   };
 
+  // The sidebar's "Rota calculada" summary always reflects the selected
+  // path, regardless of its own canvas visibility — unlike `primary`, which
+  // only takes over the canvas's bright slot for a visible path. While
+  // creating/editing, it mirrors `primary`'s live draft preview instead,
+  // which for the same reason is never gated on visibility either.
+  const summaryRoute: RouteSummaryTarget | null = editingPreview
+    ? primary
+    : selectedPath && selectedResult
+      ? { title: selectedPath.title, result: selectedResult }
+      : null;
+
+  const portalCapacityActive = Boolean(portalCount && portalWidth && portalCount > 0 && portalWidth > 0);
+  const portalHint = portalCapacityActive ? `${Math.floor(portalCount!)} slots ativos` : "inativa";
+  const hubNote =
+    hubRadius === 0
+      ? "Raio 0 — os túneis começam no próprio centro do hub."
+      : portalCapacityActive
+        ? `Os ${Math.floor(portalCount!)} portais são distribuídos igualmente pelo perímetro, ${portalWidth} blocos cada.`
+        : "Preencha quantidade e largura para pintar os slots de portal sobre o anel.";
+
   return (
     <div className="flex flex-col lg:h-full lg:flex-row">
-      <aside className="flex w-full flex-col gap-6 border-neutral-200 p-4 dark:border-neutral-800 lg:h-full lg:w-[340px] lg:shrink-0 lg:overflow-y-auto lg:border-r">
-        <div className="flex flex-col gap-4">
-          <h2 className="text-xs font-semibold uppercase tracking-wide text-neutral-400 dark:text-neutral-500">Hub</h2>
-          <CoordinateInput label="Centro do Hub" value={origin} onChange={setOrigin} />
-          <NumberField label="Raio do hub" value={hubRadius} onChange={setHubRadius} min={0} />
-          <OptionalNumberField
-            label="Quantidade de portais"
-            value={portalCount}
-            onChange={setPortalCount}
-            min={1}
-            placeholder="Não definido"
-          />
-          <OptionalNumberField
-            label="Largura dos portais"
-            value={portalWidth}
-            onChange={setPortalWidth}
-            min={1}
-            suffix="blocos"
-            placeholder="Não definido"
-          />
-        </div>
+      <aside className="flex w-full flex-col border-panel-border bg-panel lg:h-full lg:w-[356px] lg:min-w-[260px] lg:shrink-0 lg:overflow-hidden lg:border-r">
+        <SidebarHeader />
 
-        <div className="h-px bg-neutral-200 dark:bg-neutral-800" />
+        <div className="flex flex-col gap-5.5 overflow-y-auto px-4.5 pb-7 pt-4 lg:min-h-0 lg:flex-1">
+          <section className="flex flex-col gap-2.5">
+            <div className="flex items-baseline justify-between gap-2">
+              <h2 className="text-[11px] font-bold uppercase tracking-[0.18em] text-accent-soft">Hub</h2>
+              <span className="font-mono-ui text-[10px] uppercase tracking-wider text-muted">salvo automaticamente</span>
+            </div>
 
-        <div className="flex flex-col gap-4">
-          <h2 className="text-xs font-semibold uppercase tracking-wide text-neutral-400 dark:text-neutral-500">
-            Caminhos
-          </h2>
-          <SavedPathsList
-            paths={paths}
-            hubOrigin={origin}
-            selectedId={selectedId}
-            onSelect={setSelectedId}
-            onCreate={handleCreatePath}
-            onUpdate={handleUpdatePath}
-            onToggleVisible={handleToggleVisible}
-            onDelete={handleDeletePath}
-            onDraftChange={setEditingPreview}
-          />
+            <div className="grid grid-cols-3 gap-2">
+              <NumberField label="Centro X" value={origin.x} onChange={(x) => setOrigin({ x, z: origin.z })} />
+              <NumberField label="Centro Z" value={origin.z} onChange={(z) => setOrigin({ x: origin.x, z })} />
+              <NumberField label="Raio" value={hubRadius} onChange={setHubRadius} min={0} />
+            </div>
+
+            <div className="flex flex-col gap-2 rounded-[4px] border border-dashed border-border bg-card p-2.5">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-[10.5px] uppercase tracking-wider text-primary">Capacidade de portais</span>
+                <span
+                  className={`font-mono-ui text-[10px] uppercase tracking-wider ${portalCapacityActive ? "text-orange" : "text-muted"}`}
+                >
+                  {portalHint}
+                </span>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <OptionalNumberField label="Quantidade" value={portalCount} onChange={setPortalCount} min={1} />
+                <OptionalNumberField label="Largura (blocos)" value={portalWidth} onChange={setPortalWidth} min={1} />
+              </div>
+            </div>
+
+            <p className="font-mono-ui text-[11px] leading-relaxed text-muted">{hubNote}</p>
+          </section>
+
+          <section className="flex flex-col gap-2.5">
+            <SavedPathsList
+              paths={paths}
+              hubOrigin={origin}
+              selectedId={selectedId}
+              onSelect={setSelectedId}
+              onCreate={handleCreatePath}
+              onUpdate={handleUpdatePath}
+              onToggleVisible={handleToggleVisible}
+              onDelete={handleDeletePath}
+              onDraftChange={setEditingPreview}
+            />
+          </section>
+
+          <section className="flex flex-col gap-2.5">
+            <h2 className="text-[11px] font-bold uppercase tracking-[0.18em] text-orange">Rota calculada</h2>
+            <RouteSummary target={summaryRoute} previewing={editingPreview !== null} />
+          </section>
         </div>
       </aside>
 

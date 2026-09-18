@@ -1,21 +1,47 @@
-import type { RouteStyle } from "@/lib/minecraft/route";
+import { rasterizeOrthogonalPath } from "@/lib/minecraft/line-rasterization";
+import type { Point, RouteStyle } from "@/lib/minecraft/route";
 
 interface RouteStyleToggleProps {
   value: RouteStyle;
   onChange: (value: RouteStyle) => void;
   invertAxisOrder: boolean;
   onInvertAxisOrderChange: (value: boolean) => void;
+  /** Hub center and the draft's destination — used only to label which axis the first orthogonal leg travels. */
+  origin: Point;
+  destination: Point;
 }
 
 const OPTIONS: { value: RouteStyle; label: string; description: string }[] = [
-  { value: "diagonal", label: "Diagonal", description: "Segue a linha ideal (escadinha de blocos)." },
-  { value: "orthogonal", label: "Reta", description: "Dois trechos retos em ângulo reto (\"L\")." },
+  {
+    value: "diagonal",
+    label: "Diagonal",
+    description: "Segue a linha ideal em escada de blocos — menor distância construída.",
+  },
+  {
+    value: "orthogonal",
+    label: "Ortogonal",
+    description: 'Dois trechos retos em "L" — mais fácil de cavar, não segue a linha ideal.',
+  },
 ];
 
-export function RouteStyleToggle({ value, onChange, invertAxisOrder, onInvertAxisOrderChange }: RouteStyleToggleProps) {
+// Mirrors `rasterizeOrthogonalPath`'s own dominant-axis rule (ties go to X)
+// instead of re-deriving it, so the label can never drift from the math.
+function firstLegAxisLabel(origin: Point, destination: Point, invertAxisOrder: boolean): string {
+  const [firstLeg] = rasterizeOrthogonalPath(origin, destination, invertAxisOrder).legs;
+  return firstLeg.direction.x === 0 && firstLeg.direction.z !== 0 ? "eixo Z" : "eixo X";
+}
+
+export function RouteStyleToggle({
+  value,
+  onChange,
+  invertAxisOrder,
+  onInvertAxisOrderChange,
+  origin,
+  destination,
+}: RouteStyleToggleProps) {
   return (
     <div className="flex flex-col gap-1.5">
-      <span className="text-xs font-medium text-neutral-500 dark:text-neutral-400">Estilo do túnel</span>
+      <span className="text-[10px] uppercase tracking-wider text-secondary">Estilo da rota</span>
       <div className="grid grid-cols-2 gap-1.5">
         {OPTIONS.map((option) => {
           const selected = option.value === value;
@@ -26,10 +52,10 @@ export function RouteStyleToggle({ value, onChange, invertAxisOrder, onInvertAxi
               onClick={() => onChange(option.value)}
               aria-pressed={selected}
               title={option.description}
-              className={`rounded-md border px-2.5 py-1.5 text-left text-sm font-medium transition-colors focus:outline-none focus-visible:ring-1 focus-visible:ring-emerald-500 ${
+              className={`rounded-[3px] border px-2 py-2.5 text-center text-xs font-semibold transition-colors ${
                 selected
-                  ? "border-emerald-500 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
-                  : "border-neutral-300 bg-white text-neutral-600 hover:bg-neutral-50 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-300 dark:hover:bg-neutral-800"
+                  ? "border-toggle-on-border bg-toggle-on-bg text-primary-strong"
+                  : "border-border-strong bg-input-alt text-secondary hover:text-primary"
               }`}
             >
               {option.label}
@@ -37,19 +63,18 @@ export function RouteStyleToggle({ value, onChange, invertAxisOrder, onInvertAxi
           );
         })}
       </div>
-      <p className="text-xs text-neutral-400 dark:text-neutral-500">
+      <p className="text-[10.5px] leading-relaxed text-muted">
         {OPTIONS.find((option) => option.value === value)?.description}
       </p>
       {value === "orthogonal" ? (
-        <label className="mt-1 flex items-center gap-2 text-xs text-neutral-500 dark:text-neutral-400">
-          <input
-            type="checkbox"
-            checked={invertAxisOrder}
-            onChange={(e) => onInvertAxisOrderChange(e.target.checked)}
-            className="h-3.5 w-3.5 rounded border-neutral-300 text-emerald-600 focus:ring-emerald-500 dark:border-neutral-700"
-          />
-          Inverter ordem dos eixos (menor trecho primeiro)
-        </label>
+        <button
+          type="button"
+          onClick={() => onInvertAxisOrderChange(!invertAxisOrder)}
+          className="flex items-center justify-between gap-2 rounded-[3px] border border-border-strong bg-input-alt px-2.5 py-2 text-left text-xs text-accent-strong transition-colors hover:border-accent"
+        >
+          <span>Primeiro trecho: {firstLegAxisLabel(origin, destination, invertAxisOrder)}</span>
+          <span className="font-mono-ui tracking-wider text-accent">inverter ⇄</span>
+        </button>
       ) : null}
     </div>
   );

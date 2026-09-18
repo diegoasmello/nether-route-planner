@@ -2,6 +2,13 @@
 
 import { useId, useState } from "react";
 
+/**
+ * "hub"/"hub-portal" match the always-visible Hub section inputs (violet vs.
+ * orange focus accent); "draft" matches the edit-with-confirmation path form,
+ * which uses a slightly lighter surface and never changes background on focus.
+ */
+export type FieldVariant = "hub" | "hub-portal" | "draft";
+
 interface NumberFieldProps {
   label: string;
   value: number;
@@ -9,9 +16,16 @@ interface NumberFieldProps {
   min?: number;
   step?: number;
   suffix?: string;
+  variant?: FieldVariant;
 }
 
-export function NumberField({ label, value, onChange, min, step = 1, suffix }: NumberFieldProps) {
+const VARIANT_CLASS: Record<FieldVariant, string> = {
+  hub: "border-border bg-input focus:border-accent focus:bg-input-focus",
+  "hub-portal": "border-border bg-input focus:border-orange focus:bg-input-focus",
+  draft: "border-border-strong bg-input-alt focus:border-accent",
+};
+
+export function NumberField({ label, value, onChange, min, step = 1, suffix, variant = "hub" }: NumberFieldProps) {
   const id = useId();
   const [raw, setRaw] = useState(String(value));
   const [lastValue, setLastValue] = useState(value);
@@ -25,8 +39,8 @@ export function NumberField({ label, value, onChange, min, step = 1, suffix }: N
   }
 
   return (
-    <div className="flex flex-col gap-1">
-      <label htmlFor={id} className="text-xs font-medium text-neutral-500 dark:text-neutral-400">
+    <div className="flex flex-col gap-1.5">
+      <label htmlFor={id} className="text-[10px] uppercase tracking-wider text-secondary">
         {label}
       </label>
       <div className="flex items-center gap-2">
@@ -46,9 +60,9 @@ export function NumberField({ label, value, onChange, min, step = 1, suffix }: N
             }
           }}
           onBlur={() => setRaw(String(value))}
-          className="w-full rounded-md border border-neutral-300 bg-white px-2.5 py-1.5 text-sm text-neutral-900 outline-none transition-colors focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100"
+          className={`w-full rounded-[3px] border px-2.5 py-2 font-mono-ui text-[13px] text-heading outline-none transition-colors ${VARIANT_CLASS[variant]}`}
         />
-        {suffix ? <span className="text-xs text-neutral-500 dark:text-neutral-400">{suffix}</span> : null}
+        {suffix ? <span className="text-xs text-secondary">{suffix}</span> : null}
       </div>
     </div>
   );

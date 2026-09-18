@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import type { Point, RouteStyle } from "@/lib/minecraft/route";
 import type { SavedPath } from "@/lib/storage/route-planner-storage";
-import { CoordinateInput } from "./coordinate-input";
 import { NumberField } from "./number-field";
 import { RouteStyleToggle } from "./route-style-toggle";
 
@@ -36,21 +35,6 @@ interface SavedPathsListProps {
   onDraftChange: (preview: EditingPreview | null) => void;
 }
 
-const STYLE_LABEL: Record<RouteStyle, string> = {
-  diagonal: "Diagonal",
-  orthogonal: "Reta",
-};
-
-const fmtCoord = (p: Point) => `X: ${p.x}, Z: ${p.z}`;
-
-const describePath = (path: Pick<SavedPath, "routeStyle" | "invertAxisOrder" | "tunnelWidth">) => {
-  const style =
-    path.routeStyle === "orthogonal" && path.invertAxisOrder
-      ? `${STYLE_LABEL[path.routeStyle]} · eixos invertidos`
-      : STYLE_LABEL[path.routeStyle];
-  return `${style} · largura ${path.tunnelWidth}`;
-};
-
 const draftFromPath = (path: SavedPath): PathDraft => ({
   title: path.title,
   destination: path.destination,
@@ -67,30 +51,38 @@ const blankDraft = (hubOrigin: Point): PathDraft => ({
   invertAxisOrder: false,
 });
 
-const textInputClass =
-  "w-full rounded-md border border-neutral-300 bg-white px-2.5 py-1.5 text-sm text-neutral-900 outline-none transition-colors focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100";
+const describePath = (path: Pick<SavedPath, "destination" | "routeStyle" | "tunnelWidth">) =>
+  `X ${path.destination.x} · Z ${path.destination.z} · ${path.routeStyle === "orthogonal" ? "ortogonal" : "diagonal"} · ${path.tunnelWidth} ${
+    path.tunnelWidth > 1 ? "blocos" : "bloco"
+  }`;
 
-const confirmButtonClass =
-  "rounded-md border border-emerald-500 bg-emerald-500/10 px-2.5 py-1 text-xs font-medium text-emerald-700 transition-colors hover:bg-emerald-500/20 disabled:opacity-40 dark:text-emerald-300";
-
-const cancelButtonClass =
-  "rounded-md border border-neutral-300 px-2.5 py-1 text-xs font-medium text-neutral-700 transition-colors hover:bg-neutral-100 dark:border-neutral-700 dark:text-neutral-300 dark:hover:bg-neutral-800";
+const draftInputClass =
+  "w-full rounded-[3px] border border-border-strong bg-input-alt px-2.5 py-2 text-[13px] text-heading outline-none transition-colors focus:border-accent";
 
 function PathEditForm({
+  formTitle,
+  hubOrigin,
   draft,
   onChange,
   onConfirm,
   onCancel,
 }: {
+  formTitle: string;
+  hubOrigin: Point;
   draft: PathDraft;
   onChange: (draft: PathDraft) => void;
   onConfirm: () => void;
   onCancel: () => void;
 }) {
   return (
-    <div className="flex flex-col gap-3 rounded-md border border-neutral-200 p-2 dark:border-neutral-800">
-      <div className="flex flex-col gap-1">
-        <label className="text-xs font-medium text-neutral-500 dark:text-neutral-400">Nome do caminho</label>
+    <div className="flex flex-col gap-2.5 rounded-[4px] border border-l-[3px] border-panel-border border-l-accent bg-card p-3.5">
+      <div className="flex items-center justify-between">
+        <span className="text-[11px] font-bold uppercase tracking-wider text-heading">{formTitle}</span>
+        <span className="font-mono-ui text-[10px] uppercase tracking-wider text-accent">prévia ao vivo</span>
+      </div>
+
+      <div className="flex flex-col gap-1.5">
+        <label className="text-[10px] uppercase tracking-wider text-secondary">Nome do caminho</label>
         <input
           autoFocus
           type="text"
@@ -99,32 +91,86 @@ function PathEditForm({
           onKeyDown={(e) => {
             if (e.key === "Escape") onCancel();
           }}
-          placeholder="Nome do caminho"
-          className={textInputClass}
+          placeholder="ex. Base Principal"
+          className={draftInputClass}
         />
       </div>
-      <CoordinateInput label="Portal" value={draft.destination} onChange={(destination) => onChange({ ...draft, destination })} />
-      <NumberField
-        label="Largura do túnel"
-        value={draft.tunnelWidth}
-        onChange={(tunnelWidth) => onChange({ ...draft, tunnelWidth })}
-        min={1}
-      />
+
+      <div className="grid grid-cols-3 gap-2">
+        <NumberField
+          label="Destino X"
+          variant="draft"
+          value={draft.destination.x}
+          onChange={(x) => onChange({ ...draft, destination: { x, z: draft.destination.z } })}
+        />
+        <NumberField
+          label="Destino Z"
+          variant="draft"
+          value={draft.destination.z}
+          onChange={(z) => onChange({ ...draft, destination: { x: draft.destination.x, z } })}
+        />
+        <NumberField
+          label="Largura"
+          variant="draft"
+          value={draft.tunnelWidth}
+          onChange={(tunnelWidth) => onChange({ ...draft, tunnelWidth })}
+          min={1}
+        />
+      </div>
+
       <RouteStyleToggle
         value={draft.routeStyle}
         onChange={(routeStyle) => onChange({ ...draft, routeStyle })}
         invertAxisOrder={draft.invertAxisOrder}
         onInvertAxisOrderChange={(invertAxisOrder) => onChange({ ...draft, invertAxisOrder })}
+        origin={hubOrigin}
+        destination={draft.destination}
       />
-      <div className="flex gap-2">
-        <button type="button" onClick={onConfirm} disabled={draft.title.trim() === ""} className={confirmButtonClass}>
+
+      <div className="flex gap-1.5 pt-0.5">
+        <button
+          type="button"
+          onClick={onConfirm}
+          disabled={draft.title.trim() === ""}
+          className="flex-1 rounded-[3px] border border-btn-primary-border bg-btn-primary py-2.5 text-xs font-bold uppercase tracking-wider text-accent-bright transition-colors hover:bg-btn-primary-border disabled:cursor-not-allowed disabled:opacity-40"
+        >
           Salvar
         </button>
-        <button type="button" onClick={onCancel} className={cancelButtonClass}>
+        <button
+          type="button"
+          onClick={onCancel}
+          className="flex-1 rounded-[3px] border border-border-strong py-2.5 text-xs font-semibold uppercase tracking-wider text-primary transition-colors hover:border-secondary hover:text-accent-strong"
+        >
           Cancelar
         </button>
       </div>
     </div>
+  );
+}
+
+function RowIconButton({
+  onClick,
+  title,
+  colorClassName,
+  hoverClassName,
+  children,
+}: {
+  onClick: (e: React.MouseEvent) => void;
+  title: string;
+  colorClassName: string;
+  hoverClassName: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      title={title}
+      aria-label={title}
+      className={`flex h-[26px] w-[26px] items-center justify-center rounded-[3px] border border-transparent text-[13px] transition-colors ${colorClassName} ${hoverClassName}`}
+    >
+      {children}
+    </button>
   );
 }
 
@@ -141,6 +187,7 @@ export function SavedPathsList({
 }: SavedPathsListProps) {
   const [editingId, setEditingId] = useState<string | "new" | null>(null);
   const [draft, setDraft] = useState<PathDraft | null>(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
   // Lets the canvas mirror unsaved edits live, without persisting them —
   // `onCreate`/`onUpdate` (only reached from "Salvar") are what persists.
@@ -149,11 +196,13 @@ export function SavedPathsList({
   }, [editingId, draft, onDraftChange]);
 
   const startCreating = () => {
+    setConfirmDeleteId(null);
     setEditingId("new");
     setDraft(blankDraft(hubOrigin));
   };
 
   const startEditing = (path: SavedPath) => {
+    setConfirmDeleteId(null);
     setEditingId(path.id);
     setDraft(draftFromPath(path));
   };
@@ -174,97 +223,136 @@ export function SavedPathsList({
     cancelEditing();
   };
 
-  const handleDelete = (path: SavedPath) => {
-    if (window.confirm(`Excluir o caminho "${path.title}"?`)) {
-      onDelete(path.id);
-    }
-  };
-
   return (
-    <div className="flex flex-col gap-3">
-      {editingId === "new" && draft ? (
-        <PathEditForm draft={draft} onChange={setDraft} onConfirm={confirmEditing} onCancel={cancelEditing} />
-      ) : (
+    <div className="flex flex-col gap-2.5">
+      <div className="flex items-center justify-between gap-2">
+        <h2 className="text-[11px] font-bold uppercase tracking-[0.18em] text-accent-soft">
+          Caminhos <span className="text-muted">({paths.length})</span>
+        </h2>
         <button
           type="button"
           onClick={startCreating}
           disabled={editingId !== null}
-          className="rounded-md border border-emerald-500 bg-emerald-500/10 px-3 py-1.5 text-sm font-medium text-emerald-700 transition-colors hover:bg-emerald-500/20 disabled:opacity-40 dark:text-emerald-300"
+          className="rounded-[3px] border border-border-strong bg-chip px-2.5 py-1.5 text-[11.5px] font-semibold tracking-wide text-accent-strong transition-colors hover:border-accent hover:bg-chip-hover hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
         >
           + Novo caminho
         </button>
-      )}
+      </div>
 
-      {paths.length === 0 ? (
-        <p className="text-xs text-neutral-400 dark:text-neutral-500">Nenhum caminho salvo ainda.</p>
-      ) : (
-        <ul className="flex flex-col gap-2">
-          {paths.map((path) => (
-            <li key={path.id} className="rounded-md border border-neutral-200 dark:border-neutral-800">
-              {editingId === path.id && draft ? (
-                <PathEditForm draft={draft} onChange={setDraft} onConfirm={confirmEditing} onCancel={cancelEditing} />
-              ) : (
+      {editingId !== null && draft ? (
+        <PathEditForm
+          formTitle={editingId === "new" ? "Novo caminho" : "Editar caminho"}
+          hubOrigin={hubOrigin}
+          draft={draft}
+          onChange={setDraft}
+          onConfirm={confirmEditing}
+          onCancel={cancelEditing}
+        />
+      ) : null}
+
+      <div className="flex flex-col gap-1.5">
+        {paths
+          .filter((path) => path.id !== editingId)
+          .map((path) => {
+            const isSelected = path.id === selectedId;
+            const isConfirming = confirmDeleteId === path.id;
+            return (
+              <div
+                key={path.id}
+                className={`flex flex-col overflow-hidden rounded-[4px] border ${
+                  isSelected ? "border-accent-muted bg-card-selected" : "border-panel-border bg-card"
+                } ${path.visible ? "opacity-100" : "opacity-60"}`}
+              >
                 <div
-                  className={`flex items-center justify-between gap-2 p-2 ${
-                    path.id === selectedId ? "bg-emerald-500/5" : ""
-                  }`}
+                  onClick={() => onSelect(path.id)}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") onSelect(path.id);
+                  }}
+                  aria-pressed={isSelected}
+                  className="flex cursor-pointer items-center gap-2.5 px-2.5 py-2.5"
                 >
-                  <button
-                    type="button"
-                    onClick={() => onSelect(path.id)}
-                    title="Selecionar este caminho"
-                    aria-pressed={path.id === selectedId}
-                    className="flex min-w-0 flex-1 flex-col items-start text-left"
-                  >
-                    <span className="truncate text-sm font-medium text-neutral-900 dark:text-neutral-100">
+                  <span
+                    className={`h-[9px] w-[9px] shrink-0 rounded-[1px] ${
+                      isSelected ? "bg-accent" : path.visible ? "bg-dot-idle" : "bg-dot-hidden"
+                    }`}
+                  />
+                  <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+                    <span className={`truncate text-[13px] font-semibold ${isSelected ? "text-primary-strong" : "text-primary"}`}>
                       {path.title}
                     </span>
-                    <span className="truncate text-xs text-neutral-500 dark:text-neutral-400">
-                      {fmtCoord(path.destination)} · {describePath(path)}
-                    </span>
-                  </button>
-                  <div className="flex shrink-0 gap-1">
-                    <button
-                      type="button"
-                      onClick={() => onToggleVisible(path.id)}
+                    <span className="truncate font-mono-ui text-[10.5px] text-faint">{describePath(path)}</span>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-0.5">
+                    <RowIconButton
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onToggleVisible(path.id);
+                      }}
                       title={path.visible ? "Ocultar no canvas" : "Exibir no canvas"}
-                      aria-label={path.visible ? "Ocultar no canvas" : "Exibir no canvas"}
-                      aria-pressed={path.visible}
-                      className={
-                        path.visible
-                          ? "rounded-md border border-emerald-500 bg-emerald-500/10 px-2 py-1 text-xs text-emerald-700 transition-colors hover:bg-emerald-500/20 dark:text-emerald-300"
-                          : "rounded-md border border-neutral-300 px-2 py-1 text-xs text-neutral-400 transition-colors hover:bg-neutral-100 dark:border-neutral-700 dark:text-neutral-500 dark:hover:bg-neutral-800"
-                      }
+                      colorClassName={path.visible ? "text-accent-soft" : "text-muted"}
+                      hoverClassName="hover:border-border-strong hover:bg-row-hover"
                     >
-                      {path.visible ? "◉" : "◯"}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => startEditing(path)}
-                      disabled={editingId !== null}
+                      {path.visible ? "◉" : "○"}
+                    </RowIconButton>
+                    <RowIconButton
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (editingId === null) startEditing(path);
+                      }}
                       title="Editar"
-                      aria-label="Editar"
-                      className="rounded-md border border-neutral-300 px-2 py-1 text-xs text-neutral-600 transition-colors hover:bg-neutral-100 disabled:opacity-40 dark:border-neutral-700 dark:text-neutral-300 dark:hover:bg-neutral-800"
+                      colorClassName={editingId !== null ? "cursor-not-allowed text-muted/50" : "text-secondary"}
+                      hoverClassName={editingId === null ? "hover:border-border-strong hover:bg-row-hover hover:text-heading" : ""}
                     >
                       ✎
+                    </RowIconButton>
+                    <RowIconButton
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (editingId === null) setConfirmDeleteId(path.id);
+                      }}
+                      title="Excluir"
+                      colorClassName={editingId !== null ? "cursor-not-allowed text-muted/50" : "text-secondary"}
+                      hoverClassName={
+                        editingId === null ? "hover:border-danger-border hover:bg-danger-hover-bg hover:text-danger-hover-text" : ""
+                      }
+                    >
+                      ✕
+                    </RowIconButton>
+                  </div>
+                </div>
+                {isConfirming ? (
+                  <div className="flex items-center gap-2 border-t border-danger-border bg-danger-bg px-2.5 py-2">
+                    <span className="flex-1 font-mono-ui text-[11px] text-danger-text">Excluir este caminho?</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onDelete(path.id);
+                        setConfirmDeleteId(null);
+                      }}
+                      className="rounded-[3px] border border-danger-strong-border bg-danger-strong px-2.5 py-1 text-[11px] font-semibold text-danger-text-strong transition-colors hover:bg-danger-strong-border"
+                    >
+                      Excluir
                     </button>
                     <button
                       type="button"
-                      onClick={() => handleDelete(path)}
-                      disabled={editingId !== null}
-                      title="Excluir"
-                      aria-label="Excluir"
-                      className="rounded-md border border-neutral-300 px-2 py-1 text-xs text-red-600 transition-colors hover:bg-red-50 disabled:opacity-40 dark:border-neutral-700 dark:text-red-400 dark:hover:bg-red-950"
+                      onClick={() => setConfirmDeleteId(null)}
+                      className="rounded-[3px] border border-border-muted px-2.5 py-1 text-[11px] text-primary transition-colors hover:border-secondary"
                     >
-                      ✕
+                      Manter
                     </button>
                   </div>
-                </div>
-              )}
-            </li>
-          ))}
-        </ul>
-      )}
+                ) : null}
+              </div>
+            );
+          })}
+        {paths.length === 0 ? (
+          <p className="rounded-[4px] border border-dashed border-border p-4 text-center font-mono-ui text-[11.5px] leading-relaxed text-muted">
+            Nenhum caminho ainda. Crie o primeiro túnel radiando do centro do hub.
+          </p>
+        ) : null}
+      </div>
     </div>
   );
 }

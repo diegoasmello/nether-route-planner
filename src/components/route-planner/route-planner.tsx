@@ -50,9 +50,7 @@ export function RoutePlanner() {
       setPortalCount(settings.portalCount);
       setPortalWidth(settings.portalWidth);
     }
-    const loadedPaths = loadSavedPaths();
-    setPaths(loadedPaths);
-    if (loadedPaths.length > 0) setSelectedId(loadedPaths[0].id);
+    setPaths(loadSavedPaths());
     setSettingsLoaded(true);
   }, []);
   /* eslint-enable react-hooks/set-state-in-effect */

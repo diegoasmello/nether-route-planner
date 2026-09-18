@@ -26,7 +26,8 @@ interface SavedPathsListProps {
   /** Hub center, used to seed a new path's destination field. */
   hubOrigin: Point;
   selectedId: string | null;
-  onSelect: (id: string) => void;
+  /** Pass `null` to deselect (e.g. clicking the already-selected row again). */
+  onSelect: (id: string | null) => void;
   onCreate: (draft: PathDraft) => void;
   onUpdate: (id: string, draft: PathDraft) => void;
   onToggleVisible: (id: string) => void;
@@ -264,11 +265,11 @@ export function SavedPathsList({
                 } ${path.visible ? "opacity-100" : "opacity-60"}`}
               >
                 <div
-                  onClick={() => onSelect(path.id)}
+                  onClick={() => onSelect(isSelected ? null : path.id)}
                   role="button"
                   tabIndex={0}
                   onKeyDown={(e) => {
-                    if (e.key === "Enter" || e.key === " ") onSelect(path.id);
+                    if (e.key === "Enter" || e.key === " ") onSelect(isSelected ? null : path.id);
                   }}
                   aria-pressed={isSelected}
                   className="flex cursor-pointer items-center gap-2.5 px-2.5 py-2.5"

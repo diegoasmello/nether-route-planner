@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { rasterizeLine, rasterizeOrthogonalPath } from "./line-rasterization";
+import { rasterizeCircle, rasterizeLine, rasterizeOrthogonalPath } from "./line-rasterization";
 
 describe("rasterizeLine", () => {
   it("returns a single block when start equals end", () => {
@@ -163,5 +163,59 @@ describe("rasterizeOrthogonalPath", () => {
       const inverted = rasterizeOrthogonalPath({ x: 0, z: 0 }, { x: 10, z: 0 }, true);
       expect(inverted.centerline).toEqual(normal.centerline);
     });
+  });
+});
+
+describe("rasterizeCircle", () => {
+  it("returns nothing for radius 0 or negative", () => {
+    expect(rasterizeCircle({ x: 0, z: 0 }, 0)).toEqual([]);
+    expect(rasterizeCircle({ x: 0, z: 0 }, -5)).toEqual([]);
+  });
+
+  it("rasterizes a radius-1 circle as the 4 orthogonal neighbors (a diamond)", () => {
+    const blocks = rasterizeCircle({ x: 0, z: 0 }, 1);
+    expect(blocks).toHaveLength(4);
+    expect(blocks).toEqual(
+      expect.arrayContaining([
+        { x: 1, z: 0 },
+        { x: -1, z: 0 },
+        { x: 0, z: 1 },
+        { x: 0, z: -1 },
+      ]),
+    );
+  });
+
+  it("produces no duplicate blocks", () => {
+    const blocks = rasterizeCircle({ x: 0, z: 0 }, 12);
+    const seen = new Set(blocks.map((b) => `${b.x},${b.z}`));
+    expect(seen.size).toBe(blocks.length);
+  });
+
+  it("is symmetric on both axes around the center", () => {
+    const center = { x: 5, z: -3 };
+    const radius = 8;
+    const blocks = rasterizeCircle(center, radius);
+    const seen = new Set(blocks.map((b) => `${b.x},${b.z}`));
+    for (const block of blocks) {
+      const dx = block.x - center.x;
+      const dz = block.z - center.z;
+      expect(seen.has(`${center.x - dx},${center.z + dz}`)).toBe(true);
+      expect(seen.has(`${center.x + dx},${center.z - dz}`)).toBe(true);
+      expect(seen.has(`${center.x - dx},${center.z - dz}`)).toBe(true);
+    }
+  });
+
+  it("keeps every block within rounding distance of the true radius (no spikes or holes)", () => {
+    const radius = 20;
+    const blocks = rasterizeCircle({ x: 0, z: 0 }, radius);
+    for (const block of blocks) {
+      const dist = Math.sqrt(block.x * block.x + block.z * block.z);
+      expect(Math.abs(dist - radius)).toBeLessThan(1.5);
+    }
+  });
+
+  it("rounds a fractional center and radius to the nearest block", () => {
+    const blocks = rasterizeCircle({ x: 0.4, z: 0.4 }, 1.4);
+    expect(blocks).toEqual(rasterizeCircle({ x: 0, z: 0 }, 1));
   });
 });

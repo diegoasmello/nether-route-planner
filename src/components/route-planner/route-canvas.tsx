@@ -2,6 +2,7 @@
 
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
 import { clampScale, fitViewport, screenToWorld, worldToScreen, type ScreenPoint, type Viewport } from "@/lib/minecraft/coordinates";
+import { rasterizeCircle } from "@/lib/minecraft/line-rasterization";
 import type { Point, RoutePlanResult } from "@/lib/minecraft/route";
 
 export interface RouteCanvasHandle {
@@ -284,7 +285,13 @@ export const RouteCanvas = forwardRef<RouteCanvasHandle, RouteCanvasProps>(funct
       ctx.stroke();
     }
 
-    // Hub circle (shared by every path, drawn once).
+    const blockPx = Math.max(1, viewport.scale);
+
+    // Hub circle (shared by every path, drawn once), rasterized into the
+    // same block grid as every route below (see `rasterizeCircle`) instead
+    // of a smooth curve — it represents the actual pixelated ring of blocks
+    // a player would place in Minecraft, at a true 1:1 block/pixel size at
+    // any zoom level.
     if (hubRadius > 0) {
       const center = w2s(hubOrigin);
       const radiusPx = hubRadius * viewport.scale;
@@ -292,14 +299,13 @@ export const RouteCanvas = forwardRef<RouteCanvasHandle, RouteCanvasProps>(funct
       ctx.arc(center.x, center.y, radiusPx, 0, Math.PI * 2);
       ctx.fillStyle = COLORS.hubFill;
       ctx.fill();
-      ctx.setLineDash([6, 5]);
-      ctx.strokeStyle = COLORS.hubStroke;
-      ctx.lineWidth = 2;
-      ctx.stroke();
-      ctx.setLineDash([]);
-    }
 
-    const blockPx = Math.max(1, viewport.scale);
+      ctx.fillStyle = COLORS.hubStroke;
+      for (const block of rasterizeCircle(hubOrigin, hubRadius)) {
+        const s = w2s(block);
+        ctx.fillRect(s.x - blockPx / 2, s.y - blockPx / 2, blockPx, blockPx);
+      }
+    }
 
     // Draws one path's corridor/centerline/title/markers. Shared between
     // the selected path (`isPrimary`, full color, fixed "Portal" label)

@@ -52,6 +52,7 @@ These decisions are already made and tested — don't rediscover them from scrat
 - **Portal inside the hub radius**: no tunnel to build (`tunnel.length === 0`, `centerline`/`corridorBlocks` empty).
 - **Origin === destination**: handled explicitly in the UI ("origin and destination are the same point"), with no angle/direction computed. A brand-new path defaults its destination to the hub origin exactly, so it starts in this state until the user edits it.
 - **`rasterizeOrthogonalPath`** (`lib/minecraft/line-rasterization.ts`): by default travels the dominant axis (larger of `|dx|`/`|dz|`) first, out of the hub, so the corner sits as close to the destination as possible; ties go to X. `invert: true` swaps to the minor axis first. When start and end already share an axis, both orders degenerate to the same single leg, identical to `rasterizeLine`.
+- **`rasterizeCircle`** (`lib/minecraft/line-rasterization.ts`): the hub boundary is drawn pixelated — the same block-square rendering as a path's corridor/centerline — rather than a smooth curve, to represent the actual ring of blocks a player would place. Uses the midpoint (Bresenham) circle algorithm (one octant, mirrored 8-way) so the ring has no gaps. This is purely a drawing concern: `findHubExit` (`geometry.ts`) still does the exact, non-rasterized circle-intersection math: don't wire `rasterizeCircle` into it.
 
 ## Paths list: interaction model
 

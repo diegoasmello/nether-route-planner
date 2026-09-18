@@ -104,3 +104,53 @@ export function rasterizeOrthogonalPath(start: Point, end: Point, invert = false
 
   return { corner, legs, centerline };
 }
+
+/**
+ * Rasterizes the hub boundary (a circle of `radius` around `center`) into
+ * the discrete ring of blocks a player would actually place, using the
+ * midpoint (Bresenham) circle algorithm: one octant is computed with
+ * integer arithmetic and mirrored 8-way, giving a gap-free pixelated ring
+ * with no ordering or duplicates. Mirrors `rasterizeLine`'s role for
+ * straight tunnels — the smooth math circle from `findHubExit` stays exact,
+ * this is only how it's drawn/built. Returns `[]` for radius <= 0.
+ */
+export function rasterizeCircle(center: Point, radius: number): BlockCoord[] {
+  const cx = Math.round(center.x);
+  const cz = Math.round(center.z);
+  const r = Math.round(radius);
+  if (r <= 0) return [];
+
+  const blocks: BlockCoord[] = [];
+  const seen = new Set<string>();
+  const addBlock = (x: number, z: number) => {
+    const key = `${x},${z}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    blocks.push({ x, z });
+  };
+
+  let x = r;
+  let z = 0;
+  let err = 1 - r;
+
+  while (x >= z) {
+    addBlock(cx + x, cz + z);
+    addBlock(cx - x, cz + z);
+    addBlock(cx + x, cz - z);
+    addBlock(cx - x, cz - z);
+    addBlock(cx + z, cz + x);
+    addBlock(cx - z, cz + x);
+    addBlock(cx + z, cz - x);
+    addBlock(cx - z, cz - x);
+
+    z++;
+    if (err < 0) {
+      err += 2 * z + 1;
+    } else {
+      x--;
+      err += 2 * (z - x) + 1;
+    }
+  }
+
+  return blocks;
+}
